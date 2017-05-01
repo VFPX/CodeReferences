@@ -1,268 +1,272 @@
+#include "foxref.h"
+
 * Abstract:
 *   Class for add/retrieving values
 *	from FoxUser resource file.
 *
 
-DEFINE CLASS FoxResource AS Custom
-	PROTECTED oCollection
-	
-	oCollection  = .NULL.
+Define Class FoxResource As Custom
+	Protected oCollection
 
-	ResourceType = "PREFW"
+	oCollection  = .Null.
+
+	ResourceType = 'PREFW'
 	ResourceFile = ''
-	
-	PROCEDURE Init()
-		THIS.oCollection = CREATEOBJECT("Collection")
-		THIS.ResourceFile = SYS(2005)
-	ENDPROC
+
+	Procedure Init()
+		This.oCollection = Createobject ('Collection')
+		*** JRN 2010-06-02 : THIS.ResourceFile = SYS(2005)
+		This.ResourceFile = RESOURCE_FILE
+	Endproc
 
 	* Clear out all options
-	FUNCTION Clear()
-		THIS.oCollection.Remove(-1)
-	ENDFUNC
-	
-	FUNCTION Set(cOption, xValue)
+	Function Clear()
+		This.oCollection.Remove (-1)
+	Endfunc
+
+	Function Set (cOption, xValue)
 		* remove if already exists
-		IF THIS.OptionExists(m.cOption)
-			THIS.oCollection.Remove(UPPER(m.cOption))
-		ENDIF
+		If This.OptionExists (m.cOption)
+			This.oCollection.Remove (Upper (m.cOption))
+		Endif
 
 		* Add back in
-		RETURN THIS.oCollection.Add(m.xValue, UPPER(m.cOption))
-	ENDFUNC
-	
-	FUNCTION Get(cOption)
-		LOCAL xValue
-		LOCAL i
+		Return This.oCollection.Add (m.xValue, Upper (m.cOption))
+	Endfunc
 
-		m.xValue = .NULL.
-		m.cOption = UPPER(m.cOption)
-		FOR m.i = 1 TO THIS.oCollection.Count
-			IF UPPER(THIS.oCollection.GetKey(m.i)) == m.cOption
-				m.xValue = THIS.oCollection.Item(m.i)
-				EXIT
-			ENDIF
-		ENDFOR
+	Function Get (cOption)
+		Local xValue
+		Local i
 
-		RETURN m.xValue
-	ENDFUNC
-	
-	FUNCTION OptionExists(cOption)
-		LOCAL i
-		LOCAL lExists
-		
+		m.xValue = .Null.
+		m.cOption = Upper (m.cOption)
+		For m.i = 1 To This.oCollection.Count
+			If Upper (This.oCollection.GetKey (m.i)) == m.cOption
+				m.xValue = This.oCollection.Item (m.i)
+				Exit
+			Endif
+		Endfor
+
+		Return m.xValue
+	Endfunc
+
+	Function OptionExists (cOption)
+		Local i
+		Local lExists
+
 		m.lExists = .F.
-		m.cOption = UPPER(m.cOption)
-		FOR m.i = 1 TO THIS.oCollection.Count
-			IF UPPER(THIS.oCollection.GetKey(m.i)) == m.cOption
+		m.cOption = Upper (m.cOption)
+		For m.i = 1 To This.oCollection.Count
+			If Upper (This.oCollection.GetKey (m.i)) == m.cOption
 				m.lExists = .T.
-				EXIT
-			ENDIF
-		ENDFOR
-		
-		RETURN m.lExists
-	ENDFUNC
-	
-	FUNCTION OpenResource(lUpdating)
-		LOCAL lSuccess
-		LOCAL ARRAY aFileInfo[1]
-		
-		IF !(SET("RESOURCE") == "ON")
-			RETURN .F.
-		ENDIF
+				Exit
+			Endif
+		Endfor
+
+		Return m.lExists
+	Endfunc
+
+	Function OpenResource (lUpdating)
+		Local lSuccess
+		Local Array aFileInfo[1]
+
+		*** JRN 2010-06-02 :
+		*!*	IF !(SET("RESOURCE") == "ON")
+		*!*		RETURN .F.
+		*!*	ENDIF
 
 		lSuccess = .F.
-		
-		IF !USED("FoxResource")
-			IF ADIR(aFileInfo, THIS.ResourceFile) > 0 AND (!lUpdating OR !('R' $ aFileInfo[1, 5]))
-				TRY
-					USE (THIS.ResourceFile) ALIAS FoxResource IN 0 SHARED AGAIN
-					lSuccess = USED("FoxResource")					
-				CATCH
-				ENDTRY
-			ENDIF
-		ELSE
-			lSuccess = !lUpdating OR (ADIR(aFileInfo, THIS.ResourceFile) > 0 AND !('R' $ aFileInfo[1, 5]))
-		ENDIF
-				
-		RETURN lSuccess
-	ENDFUNC
-	
-	PROCEDURE Save(cID, cName)
-		LOCAL nSelect
-		LOCAL cType
-		LOCAL i
-		LOCAL ARRAY aOptions[1]
-		
-		IF VARTYPE(m.cName) <> 'C'
+
+		If Not Used ('FoxResource')
+			If Adir (aFileInfo, This.ResourceFile) > 0 And ( Not lUpdating Or Not ('R' $ aFileInfo[1, 5]))
+				Try
+					Use (This.ResourceFile) Alias FoxResource In 0 Shared Again
+					lSuccess = Used ('FoxResource')
+				Catch
+				Endtry
+			Endif
+		Else
+			lSuccess = Not lUpdating Or (Adir (aFileInfo, This.ResourceFile) > 0 And Not ('R' $ aFileInfo[1, 5]))
+		Endif
+
+		Return lSuccess
+	Endfunc
+
+	Procedure Save (cID, cName)
+		Local nSelect
+		Local cType
+		Local i
+		Local Array aOptions[1]
+
+		If Vartype (m.cName) # 'C'
 			m.cName = ''
-		ENDIF
-		IF THIS.OpenResource(.T.)
-			m.nSelect = SELECT()
-			
-			m.cType = PADR(THIS.ResourceType, LEN(FoxResource.Type))
-			m.cID   = PADR(m.cID, LEN(FoxResource.ID))
+		Endif
+		If This.OpenResource (.T.)
+			m.nSelect = Select()
 
-			SELECT FoxResource
-			LOCATE FOR Type == m.cType AND ID == m.cID AND Name == m.cName
-			IF !FOUND()
-				APPEND BLANK IN FoxResource
-				REPLACE ; 
-				  Type WITH m.cType, ;
-				  Name WITH m.cName, ;
-				  ID WITH m.cID, ;
-				  ReadOnly WITH .F. ;
-				 IN FoxResource
-			ENDIF
+			m.cType = Padr (This.ResourceType, Len (FoxResource.Type))
+			m.cID   = Padr (m.cID, Len (FoxResource.Id))
 
-			IF !FoxResource.ReadOnly
-				IF THIS.oCollection.Count > 0
-					DIMENSION aOptions[THIS.oCollection.Count, 2]
-					FOR m.i = 1 TO THIS.oCollection.Count
-						aOptions[m.i, 1] = THIS.oCollection.GetKey(m.i)
-						aOptions[m.i, 2] = THIS.oCollection.Item(m.i)
-					ENDFOR
-					SAVE TO MEMO Data ALL LIKE aOptions
-				ELSE
-					BLANK FIELDS Data IN FoxResource
-				ENDIF
+			Select FoxResource
+			Locate For Type == m.cType And Id == m.cID And Name == m.cName
+			If Not Found()
+				Append Blank In FoxResource
+				Replace															;
+									Type With m.cType,							;
+									Name With m.cName,							;
+									Id With m.cID,								;
+									ReadOnly With .F.							;
+									In FoxResource
+			Endif
 
-				REPLACE ;
-				  Updated WITH DATE(), ;
-				  ckval WITH VAL(SYS(2007, FoxResource.Data)) ;
-				 IN FoxResource
-			ENDIF
-			
-			SELECT (m.nSelect)
-		ENDIF
-	ENDPROC
-	
-	PROCEDURE Load(cID, cName)
-		LOCAL nSelect
-		LOCAL cType
-		LOCAL i
-		LOCAL nCnt
-		LOCAL ARRAY aOptions[1]
-		
-		IF VARTYPE(m.cName) <> 'C'
+			If Not FoxResource.ReadOnly
+				If This.oCollection.Count > 0
+					Dimension aOptions[THIS.oCollection.Count, 2]
+					For m.i = 1 To This.oCollection.Count
+						aOptions[m.i, 1] = This.oCollection.GetKey (m.i)
+						aOptions[m.i, 2] = This.oCollection.Item (m.i)
+					Endfor
+					Save To Memo Data All Like aOptions
+				Else
+					Blank Fields Data In FoxResource
+				Endif
+
+				Replace															;
+									Updated With Date(),						;
+									ckval With Val (Sys(2007, FoxResource.Data));
+									In FoxResource
+			Endif
+
+			Select (m.nSelect)
+		Endif
+	Endproc
+
+	Procedure Load (cID, cName)
+		Local nSelect
+		Local cType
+		Local i
+		Local nCnt
+		Local Array aOptions[1]
+
+		If Vartype (m.cName) # 'C'
 			m.cName = ''
-		ENDIF
-		
-		THIS.Clear()
-		IF THIS.OpenResource()
-			m.nSelect = SELECT()
-			
-			m.cType = PADR(THIS.ResourceType, LEN(FoxResource.Type))
-			m.cID   = PADR(m.cID, LEN(FoxResource.ID))
+		Endif
 
-			SELECT FoxResource
-			LOCATE FOR Type == m.cType AND ID == m.cID AND Name == m.cName
-			IF FOUND() AND !EMPTY(Data) AND ckval == VAL(SYS(2007, Data))
-				RESTORE FROM MEMO Data ADDITIVE
-				IF VARTYPE(aOptions[1,1]) == 'C'
-					m.nCnt = ALEN(aOptions, 1)
-					FOR m.i = 1 TO m.nCnt
-						THIS.Set(aOptions[m.i, 1], aOptions[m.i, 2])
-					ENDFOR
-				ENDIF
-			ENDIF
-			
-			SELECT (m.nSelect)
-		ENDIF
-	ENDPROC
+		This.Clear()
+		If This.OpenResource()
+			m.nSelect = Select()
 
-	FUNCTION GetData(cID, cName)
-		LOCAL cData
-		LOCAL nSelect
-		LOCAL cType
+			m.cType = Padr (This.ResourceType, Len (FoxResource.Type))
+			m.cID   = Padr (m.cID, Len (FoxResource.Id))
 
-		IF VARTYPE(m.cName) <> 'C'
+			Select FoxResource
+			Locate For Type == m.cType And Id == m.cID And Name == m.cName
+			If Found() And Not Empty (Data) And ckval == Val (Sys(2007, Data))
+				Restore From Memo Data Additive
+				If Vartype (aOptions[1, 1]) == 'C'
+					m.nCnt = Alen (aOptions, 1)
+					For m.i = 1 To m.nCnt
+						This.Set (aOptions[m.i, 1], aOptions[m.i, 2])
+					Endfor
+				Endif
+			Endif
+
+			Select (m.nSelect)
+		Endif
+	Endproc
+
+	Function GetData (cID, cName)
+		Local cData
+		Local nSelect
+		Local cType
+
+		If Vartype (m.cName) # 'C'
 			m.cName = ''
-		ENDIF
+		Endif
 
-		m.cData = .NULL.
-		IF THIS.OpenResource()
-			m.nSelect = SELECT()
-			
-			m.cType = PADR(THIS.ResourceType, LEN(FoxResource.Type))
-			m.cID   = PADR(m.cID, LEN(FoxResource.ID))
+		m.cData = .Null.
+		If This.OpenResource()
+			m.nSelect = Select()
 
-			SELECT FoxResource
-			LOCATE FOR Type == m.cType AND ID == m.cID AND Name == m.cName
-			IF FOUND() AND !EMPTY(Data) && AND ckval == VAL(SYS(2007, Data))
+			m.cType = Padr (This.ResourceType, Len (FoxResource.Type))
+			m.cID   = Padr (m.cID, Len (FoxResource.Id))
+
+			Select FoxResource
+			Locate For Type == m.cType And Id == m.cID And Name == m.cName
+			If Found() And Not Empty (Data) && AND ckval == VAL(SYS(2007, Data))
 				m.cData = FoxResource.Data
-			ENDIF
+			Endif
 
-			SELECT (m.nSelect)
-		ENDIF
-		
-		RETURN m.cData
-	ENDFUNC
+			Select (m.nSelect)
+		Endif
+
+		Return m.cData
+	Endfunc
 
 	* save to a specific fieldname
-	FUNCTION SaveTo(cField, cAlias)
-		LOCAL i
-		LOCAL nSelect
-		LOCAL lSuccess
-		LOCAL ARRAY aOptions[1]
+	Function SaveTo (cField, cAlias)
+		Local i
+		Local nSelect
+		Local lSuccess
+		Local Array aOptions[1]
 
-		IF VARTYPE(m.cAlias) <> 'C'
-			m.cAlias = ALIAS()
-		ENDIF
+		If Vartype (m.cAlias) # 'C'
+			m.cAlias = Alias()
+		Endif
 
-		IF USED(m.cAlias)
-			m.nSelect = SELECT()
-			SELECT (m.cAlias)
+		If Used (m.cAlias)
+			m.nSelect = Select()
+			Select (m.cAlias)
 
-			IF THIS.oCollection.Count > 0
-				DIMENSION aOptions[THIS.oCollection.Count, 2]
-				FOR m.i = 1 TO THIS.oCollection.Count
-					aOptions[m.i, 1] = THIS.oCollection.GetKey(m.i)
-					aOptions[m.i, 2] = THIS.oCollection.Item(m.i)
-				ENDFOR
-				SAVE TO MEMO &cField ALL LIKE aOptions
-			ELSE
-				BLANK FIELDS &cField IN FoxResource
-			ENDIF
-			SELECT (m.nSelect)
+			If This.oCollection.Count > 0
+				Dimension aOptions[THIS.oCollection.Count, 2]
+				For m.i = 1 To This.oCollection.Count
+					aOptions[m.i, 1] = This.oCollection.GetKey (m.i)
+					aOptions[m.i, 2] = This.oCollection.Item (m.i)
+				Endfor
+				Save To Memo &cField All Like aOptions
+			Else
+				Blank Fields &cField In FoxResource
+			Endif
+			Select (m.nSelect)
 			m.lSuccess = .T.
-		ELSE
+		Else
 			m.lSuccess = .F.
-		ENDIF
-		
-		RETURN m.lSuccess
-	ENDFUNC
+		Endif
+
+		Return m.lSuccess
+	Endfunc
 
 
-	FUNCTION RestoreFrom(cField, cAlias)
-		LOCAL i
-		LOCAL nSelect
-		LOCAL lSuccess
-		LOCAL ARRAY aOptions[1]
+	Function RestoreFrom (cField, cAlias)
+		Local i
+		Local nSelect
+		Local lSuccess
+		Local Array aOptions[1]
 
-		IF VARTYPE(m.cAlias) <> 'C'
-			m.cAlias = ALIAS()
-		ENDIF
+		If Vartype (m.cAlias) # 'C'
+			m.cAlias = Alias()
+		Endif
 
-		IF USED(m.cAlias)
-			m.nSelect = SELECT()
-			SELECT (m.cAlias)
+		If Used (m.cAlias)
+			m.nSelect = Select()
+			Select (m.cAlias)
 
-			RESTORE FROM MEMO &cField ADDITIVE
-			IF VARTYPE(aOptions[1,1]) == 'C'
-				m.nCnt = ALEN(aOptions, 1)
-				FOR m.i = 1 TO m.nCnt
-					THIS.Set(aOptions[m.i, 1], aOptions[m.i, 2])
-				ENDFOR
-			ENDIF
+			Restore From Memo &cField Additive
+			If Vartype (aOptions[1, 1]) == 'C'
+				m.nCnt = Alen (aOptions, 1)
+				For m.i = 1 To m.nCnt
+					This.Set (aOptions[m.i, 1], aOptions[m.i, 2])
+				Endfor
+			Endif
 
-			SELECT (m.nSelect)
+			Select (m.nSelect)
 			m.lSuccess = .T.
-		ELSE
+		Else
 			m.lSuccess = .F.
-		ENDIF
-		
-		RETURN m.lSuccess
-	ENDFUNC
-ENDDEFINE
+		Endif
+
+		Return m.lSuccess
+	Endfunc
+Enddefine
 

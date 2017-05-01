@@ -2,242 +2,256 @@
 #include "foxpro.h"
 
 * object we use to populate our collection of Matches
-DEFINE CLASS Match AS Custom
+Define Class Match As Custom
 	Name = "Match"
-	
+
 	MatchPos       = 0
 	MatchLineNo    = 0
 	MatchLen       = 0
-ENDDEFINE
+Enddefine
 
 * Abtract Match Engine Class
-DEFINE CLASS MatchEngine AS Custom
+Define Class MatchEngine As Custom
 	Name = "MatchEngine"
-	
+
 	Pattern        = ''
 	PatternLen     = 0
 	MatchCase      = .T.
 	WholeWordsOnly = .F.
 
-	oMatches = .NULL.
+	oMatches = .Null.
 	nMatchCnt = 0
-	
-	FUNCTION InitEngine()
-		RETURN .T.
-	ENDFUNC
-	
-	FUNCTION Execute(cText AS String) AS Number
-		RETURN 0
-	ENDFUNC
-	
-	FUNCTION CreateMatch()
-		LOCAL oMatch
-		
-		m.oMatch = CREATEOBJECT("Empty")
-		ADDPROPERTY(m.oMatch, "MatchOffset", 0)
-		ADDPROPERTY(m.oMatch, "MatchPos", 0)
-		ADDPROPERTY(m.oMatch, "MatchLineNo", 0)
-		ADDPROPERTY(m.oMatch, "MatchLen", 0)
-		
-		RETURN m.oMatch
-	ENDFUNC
+	NoReplace = .F.
+
+	Function InitEngine()
+		Return .T.
+	Endfunc
+
+	Function Execute(cText As String) As Number
+		Return 0
+	Endfunc
+
+	Function CreateMatch()
+		Local oMatch
+
+		m.oMatch = Createobject("Empty")
+		AddProperty(m.oMatch, "MatchOffset", 0)
+		AddProperty(m.oMatch, "MatchPos", 0)
+		AddProperty(m.oMatch, "MatchLineNo", 0)
+		AddProperty(m.oMatch, "MatchLen", 0)
+		AddProperty(m.oMatch, "NoReplace", This.NoReplace)
+
+		Return m.oMatch
+	Endfunc
 
 	* utility function for dermining if Whole Word
-	FUNCTION IsAlphaNumeric(ch)
-		RETURN ISALPHA(ch) OR BETWEEN(ch, '0', '9') OR ch == '_'
-	ENDFUNC
+	Function IsAlphaNumeric(ch)
+		Return Isalpha(ch) Or Between(ch, '0', '9') Or ch == '_'
+	Endfunc
 
-	FUNCTION SetPattern(cPattern)
-		IF VARTYPE(cPattern) <> 'C'
-			RETURN .F.
-		ENDIF
-		
-		THIS.PatternLen = LENC(m.cPattern)
-		THIS.Pattern = cPattern
+	Function SetPattern(cPattern)
+		If Vartype(cPattern) <> 'C'
+			Return .F.
+		Endif
 
-		RETURN .T.
-	ENDFUNC
-	
+		This.PatternLen = Lenc(m.cPattern)
+		This.Pattern = cPattern
 
-ENDDEFINE
+		Return .T.
+	Endfunc
+
+
+Enddefine
 
 
 * Standard Match Engine
-DEFINE CLASS MatchDefault AS MatchEngine
+Define Class MatchDefault As MatchEngine
 	Name = "MatchDefault"
 
-	FUNCTION Execute(cText AS String)
-		LOCAL nPos
-		LOCAL nOccurrence
-		LOCAL i
-		LOCAL oMatch
-		
+	Function Execute(cText As String)
+		Local nPos
+		Local nOccurrence
+		Local i
+		Local oMatch
+
 		nOccurrence = 1
 		i = 0
 
 
-		THIS.oMatches = CREATEOBJECT("Collection")
-		IF THIS.MatchCase
-			nPos = AT_C(THIS.Pattern, cText, nOccurrence)
-		ELSE
-			nPos = ATCC(THIS.Pattern, cText, nOccurrence)
-		ENDIF
+		This.oMatches = Createobject("Collection")
+		If This.MatchCase
+			nPos = At_c(This.Pattern, cText, nOccurrence)
+		Else
+			nPos = Atcc(This.Pattern, cText, nOccurrence)
+		Endif
 
 		* don't bother converting CR/LF to LF only unless there are matches
-		IF nPos > 0
-			cText = STRTRAN(cText, CHR(13) + CHR(10), CHR(10))
-			cText = STRTRAN(cText, CHR(13), CHR(10))
+		If nPos > 0
+			cText = Strtran(cText, Chr(13) + Chr(10), Chr(10))
+			cText = Strtran(cText, Chr(13), Chr(10))
 
-			IF THIS.MatchCase
-				nPos = AT_C(THIS.Pattern, cText, nOccurrence)
-			ELSE
-				nPos = ATCC(THIS.Pattern, cText, nOccurrence)
-			ENDIF
-		ENDIF
+			If This.MatchCase
+				nPos = At_c(This.Pattern, cText, nOccurrence)
+			Else
+				nPos = Atcc(This.Pattern, cText, nOccurrence)
+			Endif
+		Endif
 
-		DO WHILE nPos <> 0
+		Do While nPos <> 0
 			* if Whole Word Only is selected, then we must
 			* make sure the word we found comprises a whole word
-			IF (!THIS.WholeWordsOnly OR (m.nPos > 1 AND !THIS.IsAlphaNumeric(SUBSTRC(m.cText, m.nPos - 1, 1)) AND (m.nPos == LENC(m.cText) OR !THIS.IsAlphaNumeric(SUBSTRC(m.cText, m.nPos + THIS.PatternLen, 1)))))
+			*** JRN 2010-03-15 : Whole Words Only did not match word starting at first position in file / method
+			*	IF (!THIS.WholeWordsOnly OR (m.nPos > 1 AND !THIS.IsAlphaNumeric(SUBSTRC(m.cText, m.nPos - 1, 1)) AND (m.nPos == LENC(m.cText) OR !THIS.IsAlphaNumeric(SUBSTRC(m.cText, m.nPos + THIS.PatternLen, 1)))))
+			If (!This.WholeWordsOnly Or 														;
+					(m.nPos = 1 or !This.IsAlphaNumeric(Substrc(m.cText, m.nPos - 1, 1)))		;
+					And (m.nPos == Lenc(m.cText) Or !This.IsAlphaNumeric(Substrc(m.cText, m.nPos + This.PatternLen, 1)) ;
+					))
 				i = i + 1
-				oMatch = THIS.CreateMatch()
-				oMatch.MatchLen = THIS.PatternLen
-				
-				oMatch.MatchPos = nPos - RATC(CHR(10), LEFTC(cText, nPos))
-				oMatch.MatchLineNo    = OCCURS(CHR(10), LEFTC(cText, nPos)) + 1
+				oMatch = This.CreateMatch()
+				oMatch.MatchLen = This.PatternLen
 
-				THIS.oMatches.Add(oMatch)
-			ENDIF
-			
+				oMatch.MatchPos = nPos - Ratc(Chr(10), Leftc(cText, nPos))
+				oMatch.MatchLineNo    = Occurs(Chr(10), Leftc(cText, nPos)) + 1
+
+				This.oMatches.Add(oMatch)
+			Endif
+
 			nOccurrence = nOccurrence + 1
-			IF THIS.MatchCase
-				nPos = AT_C(THIS.Pattern, cText, nOccurrence)
-			ELSE
-				nPos = ATCC(THIS.Pattern, cText, nOccurrence)
-			ENDIF
-		ENDDO
+			If This.MatchCase
+				nPos = At_c(This.Pattern, cText, nOccurrence)
+			Else
+				nPos = Atcc(This.Pattern, cText, nOccurrence)
+			Endif
+		Enddo
 
-		THIS.nMatchCnt = i
-		
-		RETURN THIS.nMatchCnt
-	ENDFUNC
-	
+		This.nMatchCnt = i
 
-ENDDEFINE
+		Return This.nMatchCnt
+	Endfunc
+
+
+Enddefine
 
 
 * Regular Expression search engine (relies on VBScript)
-DEFINE CLASS MatchWildcard AS MatchEngine
+Define Class MatchWildcard As MatchEngine
 	Name = "MatchWildcard"
 
-	oRegExpr = .NULL.
+	oRegExpr = .Null.
 
-	FUNCTION InitEngine()
-		LOCAL lSuccess
-		
+	Function InitEngine()
+		Local lSuccess
+
 		m.lSuccess = .T.
-		TRY
-			THIS.oRegExpr = CreateObject("VBScript.RegExp")
-			THIS.oRegExpr.Global = .T.
-		CATCH
+		Try
+			This.oRegExpr = Createobject("VBScript.RegExp")
+			This.oRegExpr.Global = .T.
+		Catch
 			m.lSuccess = .F.
-			THIS.oRegExpr = .NULL.
-			MessageBox(WSH_REQUIRED_LOC, MB_ICONEXCLAMATION, APPNAME_LOC)
-		ENDTRY
-		
-		RETURN m.lSuccess
-	ENDFUNC
+			This.oRegExpr = .Null.
+			Messagebox(WSH_REQUIRED_LOC, MB_ICONEXCLAMATION, APPNAME_LOC)
+		Endtry
 
-	FUNCTION SetPattern(cPattern)
-		LOCAL lSuccess
-		LOCAL oException
+		Return m.lSuccess
+	Endfunc
 
-		IF VARTYPE(cPattern) <> 'C'
-			RETURN .F.
-		ENDIF
-		IF EMPTY(cPattern)
-			RETURN .T.
-		ENDIF
+	Function SetPattern(cPattern)
+		Local lSuccess
+		Local oException
+
+		If Vartype(cPattern) <> 'C'
+			Return .F.
+		Endif
+		If Empty(cPattern)
+			Return .T.
+		Endif
 
 		lSuccess = .T.
-		
-		IF THIS.WholeWordsOnly
+
+		If This.WholeWordsOnly
 			cPattern = "\b" + cPattern + "\b"
-		ENDIF
-		
-		TRY		
-			THIS.oRegExpr.Pattern = cPattern
-		CATCH TO oException
+		Endif
+
+		Try
+			This.oRegExpr.Pattern = cPattern
+		Catch To oException
 			m.lSuccess = .F.
-		ENDTRY
+		Endtry
 
 		* now check the pattern
-		TRY
-			THIS.oRegExpr.Test("abcdefg")
-		CATCH TO oException
+		Try
+			This.oRegExpr.Test("abcdefg")
+		Catch To oException
 			m.lSuccess = .F.
-		ENDTRY
+		Endtry
+
+		If lSuccess
+			This.PatternLen = Lenc(m.cPattern)
+			This.Pattern = cPattern
+		EndIf
 		
-		IF lSuccess
-			THIS.PatternLen = LENC(m.cPattern)
-			THIS.Pattern = cPattern
-		ENDIF
-		
-		RETURN lSuccess
-	ENDFUNC
+		This.NoReplace = Len(cPattern) # Len(Chrtran( cPattern, RegExpSpecialChars, '')) 
+
+		Return lSuccess
+	Endfunc
 
 
-	FUNCTION Execute(cText AS String)
-		LOCAL oMatches
-		LOCAL oMatch
-		LOCAL oRegExprMatch
-		LOCAL nPos
-		LOCAL lSuccess
-		LOCAL oException
-		LOCAL nOccurs
-		LOCAL cFindChar
-		
-		THIS.oMatches = CREATEOBJECT("Collection")
+	Function Execute(cText As String)
+		Local oMatches
+		Local oMatch
+		Local oRegExprMatch
+		Local nPos
+		Local lSuccess
+		Local oException
+		Local nOccurs
+		Local cFindChar
+		Local cTextRegExpr
 
-	
-		THIS.nMatchCnt = 0
-		
+		This.oMatches = Createobject("Collection")
+
+
+		This.nMatchCnt = 0
+
 		lSuccess = .T.
-		TRY
-			THIS.oRegExpr.IgnoreCase = !THIS.MatchCase
-			THIS.oRegExpr.MultiLine = .T.
-			oMatches = THIS.oRegExpr.Execute(cText)
-		CATCH TO oException
+		Try
+			This.oRegExpr.IgnoreCase = !This.MatchCase
+			This.oRegExpr.MultiLine = .T.
+			****************************************************************
+			*** JRN 2010-03-12 : handle continuation lines
+			cTextRegExpr = Strtran (cText, ';' + Chr(13) + Chr(10), Space(3))
+			****************************************************************
+			oMatches = This.oRegExpr.Execute(cTextRegExpr)
+		Catch To oException
 			lSuccess = .F.
-		ENDTRY
+		Endtry
 
 
-		IF m.lSuccess
-			THIS.nMatchCnt = oMatches.Count
-			FOR EACH oRegExprMatch IN oMatches
+		If m.lSuccess
+			This.nMatchCnt = oMatches.Count
+			For Each oRegExprMatch In oMatches
 				nPos = oRegExprMatch.FirstIndex + 1
-				
-				oMatch = THIS.CreateMatch()
-				oMatch.MatchLen       = LENC(oRegExprMatch.Value)
+
+				oMatch = This.CreateMatch()
+				oMatch.MatchLen       = Lenc(oRegExprMatch.Value)
 
 
-				cFindChar = CHR(10)
-				nOccurs = OCCURS(cFindChar, LEFTC(cText, nPos))
-				IF nOccurs == 0
-					cFindChar = CHR(13)
-					nOccurs = OCCURS(cFindChar, LEFTC(cText, nPos))
-				ENDIF
+				cFindChar = Chr(10)
+				nOccurs = Occurs(cFindChar, Leftc(cText, nPos))
+				If nOccurs == 0
+					cFindChar = Chr(13)
+					nOccurs = Occurs(cFindChar, Leftc(cText, nPos))
+				Endif
 				oMatch.MatchLineNo    = nOccurs + 1
-				oMatch.MatchPos       = nPos - RATC(cFindChar, LEFTC(cText, nPos))
+				oMatch.MatchPos       = nPos - Ratc(cFindChar, Leftc(cText, nPos))
 
-				THIS.oMatches.Add(oMatch)
-			ENDFOR
-		ELSE
-			RETURN -1  && error
-		ENDIF
+				This.oMatches.Add(oMatch)
+			Endfor
+		Else
+			Return -1  && error
+		Endif
 
-		RETURN THIS.nMatchCnt
-	ENDFUNC
+		Return This.nMatchCnt
+	Endfunc
 
-ENDDEFINE
+Enddefine
 

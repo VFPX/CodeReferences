@@ -37,6 +37,7 @@ DEFINE CLASS CFoxRefStart AS Session
 		LOCAL ARRAY aEdEnv[25]
 
 		SET TALK OFF
+		SET SYSFORMATS ON
 
 		IF VARTYPE(m.oAction) == 'O'
 			m.nMode      = m.oAction.Mode

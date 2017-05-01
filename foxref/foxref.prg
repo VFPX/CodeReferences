@@ -3,68 +3,68 @@
 *
 * Changes....:
 *
-#ifdef TESTING
-* Below is a sample of using the FoxRef
-* class programmatically
-PUBLIC o AS FoxRef OF foxref.prg
+#Ifdef TESTING
+	* Below is a sample of using the FoxRef
+	* class programmatically
+	Public o As FoxRef Of FoxRef.prg
 
-cProject = "foxref"
+	cProject = "foxref"
 
-cPattern   = "oApp"
-cFileDir   = "c:\code\visgift"
-* cSkeleton  = "*.scx"
-cFileTypes = "*.prg *.scx"
+	cPattern   = "oApp"
+	cFileDir   = "c:\code\visgift"
+	* cSkeleton  = "*.scx"
+	cFileTypes = "*.prg *.scx"
 
-o = NEWOBJECT("FoxRef", "foxref.prg")
+	o = Newobject("FoxRef", "foxref.prg")
 
-IF o.SetProject(cProject)
-	o.Quiet = .F.
-	o.FileTypes = cFileTypes
-	o.Search("for")
+	If o.SetProject(cProject)
+		o.Quiet = .F.
+		o.FileTypes = cFileTypes
+		o.Search("for")
 
-	o.OverwritePrior = .F.
-	o.WildCards = .T.
-	o.Search("whil?")
-ELSE
-	? "Unable to open project"
-ENDIF
+		o.OverwritePrior = .F.
+		o.WildCards = .T.
+		o.Search("whil?")
+	Else
+		? "Unable to open project"
+	Endif
 
-RETURN
-#endif
+	Return
+#Endif
 
 #include "foxpro.h"
 #include "foxref.h"
 
-DEFINE CLASS FoxRef AS Session
-	PROTECTED lIgnoreErrors AS Boolean
-	PROTECTED lRefreshMode
-	PROTECTED cProgressForm
-	PROTECTED lCancel
-	PROTECTED tTimeStamp
-	PROTECTED lIgnoreErrors
-	PROTECTED ARRAY aFileTypes[1]
-	PROTECTED nFileTypeCnt
+Define Class FoxRef As Session
+	Protected lIgnoreErrors As Boolean
+	Protected lRefreshMode
+	Protected cProgressForm
+	Protected lCancel
+	Protected tTimeStamp
+	Protected lIgnoreErrors
+	Protected Array aFileTypes[1]
+	Protected nFileTypeCnt
 
 
-	oSearchEngine   = .NULL.
+	oSearchEngine   = .Null.
 
 	Comments        = COMMENTS_INCLUDE
 	MatchCase       = .T.
 	WholeWordsOnly  = .F.
 
 	SubFolders      = .F.
-	Wildcards       = .F.
+	WildCards       = .F.
 	Quiet           = .F.  && quiet mode -- don't display search progress
 	ShowProgress    = .T.  && show a progress form
 
 	FileTypes       = ''
 	ReportFile      = REPORT_FILE
-	
+
 	* MRU array lists
-	DIMENSION aLookForMRU[10]
-	DIMENSION aReplaceMRU[10]
-	DIMENSION aFolderMRU[10]
-	DIMENSION aFileTypesMRU[10]
+	Dimension aLookForMRU[10]
+	Dimension aReplaceMRU[10]
+	Dimension aFolderMRU[10]
+	Dimension aFileTypesMRU[10]
 	aLookForMRU     = ''
 	aReplaceMRU     = ''
 	aFolderMRU      = ''
@@ -76,18 +76,18 @@ DEFINE CLASS FoxRef AS Session
 	RefTable        = ''
 	ProjectFile     = ''
 	FileDirectory   = ''
-	
+
 	cSetID          = ''
 	lRefreshMode    = .F.
 
 	lIgnoreErrors   = .F.
-	
-	oProgressForm   = .NULL.
-	lCancel         = .F.
-	tTimeStamp      = .NULL.
 
-	nFileTypeCnt    = 0	
-	
+	oProgressForm   = .Null.
+	lCancel         = .F.
+	tTimeStamp      = .Null.
+
+	nFileTypeCnt    = 0
+
 	cTalk           = ''
 	nLangOpt        = 0
 	cMessage        = ''
@@ -97,322 +97,323 @@ DEFINE CLASS FoxRef AS Session
 	cSaveLib        = ''
 	cExclusive      = ''
 
-	PROCEDURE Init()
-		THIS.cTalk = SET("TALK")
-		SET TALK OFF
+	Procedure Init()
+		This.cTalk = Set("TALK")
+		Set Talk Off
 
-		SET DELETED ON
-		
-		THIS.cExclusive = SET("EXCLUSIVE")
-		SET EXCLUSIVE OFF
+		Set Deleted On
 
-		THIS.cMessage = SET("MESSAGE",1)
+		This.cExclusive = Set("EXCLUSIVE")
+		Set Exclusive Off
 
-		THIS.nLangOpt = _VFP.LanguageOptions
-		_VFP.LanguageOptions=0
+		This.cMessage = Set("MESSAGE",1)
 
-		THIS.cEscapeState = SET("ESCAPE")
-		SET ESCAPE OFF
+		This.nLangOpt = _vfp.LanguageOptions
+		_vfp.LanguageOptions=0
 
-		THIS.cSYS3054 = SYS(3054)
-		SYS(3054,0)
+		This.cEscapeState = Set("ESCAPE")
+		Set Escape Off
 
-		THIS.cSaveLib      = SET("LIBRARY")
+		This.cSYS3054 = Sys(3054)
+		Sys(3054,0)
 
-		THIS.cSaveUDFParms = SET("UDFPARMS")
-		SET UDFPARMS TO VALUE
+		This.cSaveLib      = Set("LIBRARY")
 
-		SET EXACT OFF
+		This.cSaveUDFParms = Set("UDFPARMS")
+		Set Udfparms To Value
+
+		Set Exact Off
 
 
-		THIS.RestorePrefs()
+		This.RestorePrefs()
 
 		* Create file type engine objects
-		THIS.AddFileType('', FILETYPE_CLASS_DEFAULT, FILETYPE_LIBRARY_DEFAULT)  && default search engine
-		THIS.AddFileType("PRG", FILETYPE_CLASS_PRG, FILETYPE_LIBRARY_PRG)  && program
-		THIS.AddFileType("H",   FILETYPE_CLASS_H,   FILETYPE_LIBRARY_H)    && header
-		THIS.AddFileType("SCX", FILETYPE_CLASS_SCX, FILETYPE_LIBRARY_SCX)  && form
-		THIS.AddFileType("VCX", FILETYPE_CLASS_VCX, FILETYPE_LIBRARY_VCX)  && class library
-		THIS.AddFileType("DBF", FILETYPE_CLASS_DBF, FILETYPE_LIBRARY_DBF)  && table
-		THIS.AddFileType("DBC", FILETYPE_CLASS_DBC, FILETYPE_LIBRARY_DBC)  && database container
-		THIS.AddFileType("FRX", FILETYPE_CLASS_FRX, FILETYPE_LIBRARY_FRX)  && report
-		THIS.AddFileType("LBX", FILETYPE_CLASS_LBX, FILETYPE_LIBRARY_LBX)  && label
-		THIS.AddFileType("MNX", FILETYPE_CLASS_MNX, FILETYPE_LIBRARY_MNX)  && menu
-		THIS.AddFileType("SPR", FILETYPE_CLASS_SPR, FILETYPE_LIBRARY_SPR)  && screen
-		THIS.AddFileType("QPR", FILETYPE_CLASS_QPR, FILETYPE_LIBRARY_QPR)  && query
-		THIS.AddFileType("MPR", FILETYPE_CLASS_MPR, FILETYPE_LIBRARY_MPR)  && menu
-	ENDFUNC
+		This.AddFileType('', FILETYPE_CLASS_DEFAULT, FILETYPE_LIBRARY_DEFAULT)  && default search engine
+		This.AddFileType("PRG", FILETYPE_CLASS_PRG, FILETYPE_LIBRARY_PRG)  && program
+		This.AddFileType("H",   FILETYPE_CLASS_H,   FILETYPE_LIBRARY_H)    && header
+		This.AddFileType("SCX", FILETYPE_CLASS_SCX, FILETYPE_LIBRARY_SCX)  && form
+		This.AddFileType("VCX", FILETYPE_CLASS_VCX, FILETYPE_LIBRARY_VCX)  && class library
+		This.AddFileType("DBF", FILETYPE_CLASS_DBF, FILETYPE_LIBRARY_DBF)  && table
+		This.AddFileType("DBC", FILETYPE_CLASS_DBC, FILETYPE_LIBRARY_DBC)  && database container
+		This.AddFileType("FRX", FILETYPE_CLASS_FRX, FILETYPE_LIBRARY_FRX)  && report
+		This.AddFileType("LBX", FILETYPE_CLASS_LBX, FILETYPE_LIBRARY_LBX)  && label
+		This.AddFileType("MNX", FILETYPE_CLASS_MNX, FILETYPE_LIBRARY_MNX)  && menu
+		This.AddFileType("SPR", FILETYPE_CLASS_SPR, FILETYPE_LIBRARY_SPR)  && screen
+		This.AddFileType("QPR", FILETYPE_CLASS_QPR, FILETYPE_LIBRARY_QPR)  && query
+		This.AddFileType("MPR", FILETYPE_CLASS_MPR, FILETYPE_LIBRARY_MPR)  && menu
+	Endfunc
 
 
-	PROCEDURE Destroy()
-		THIS.CloseProgress()
+	Procedure Destroy()
+		This.CloseProgress()
 
-		IF THIS.cEscapeState = "ON"
-			SET ESCAPE ON		
-		ENDIF
-		IF THIS.cTalk = "ON"
-			SET TALK ON	
-		ENDIF
-		IF THIS.cExclusive = "ON"
-			SET EXCLUSIVE ON
-		ENDIF
-		SYS(3054,INT(VAL(THIS.cSYS3054)))
+		If This.cEscapeState = "ON"
+			Set Escape On
+		Endif
+		If This.cTalk = "ON"
+			Set Talk On
+		Endif
+		If This.cExclusive = "ON"
+			Set Exclusive On
+		Endif
+		Sys(3054,Int(Val(This.cSYS3054)))
 
-		_VFP.LanguageOptions = THIS.nLangOpt
+		_vfp.LanguageOptions = This.nLangOpt
 
-		IF THIS.cSaveUDFParms = "REFERENCE"
-			SET UDFPARMS TO REFERENCE
-		ENDIF
-	ENDFUNC
+		If This.cSaveUDFParms = "REFERENCE"
+			Set Udfparms To Reference
+		Endif
+	Endfunc
 
-*!*		PROCEDURE Error(nError, cMethod, nLine)
-*!*			IF THIS.lIgnoreErrors
-*!*				RETURN
-*!*			ENDIF
-*!*			DODEFAULT(nError, cMethod, nLine)
-*!*		ENDPROC
+	*!*		PROCEDURE Error(nError, cMethod, nLine)
+	*!*			IF THIS.lIgnoreErrors
+	*!*				RETURN
+	*!*			ENDIF
+	*!*			DODEFAULT(nError, cMethod, nLine)
+	*!*		ENDPROC
 
 
 	* To-Do: change this to a collection
 	* Add a filetype search -- This can be a collection in VFP8!!!
-	FUNCTION AddFileType(cFileType, cClassName, cClassLibrary)
-		LOCAL nIndex
-		LOCAL lSuccess
+	Function AddFileType(cFileType, cClassName, cClassLibrary)
+		Local nIndex
+		Local lSuccess
 
-		cFileType = ALLTRIM(UPPER(cFileType))
-		IF LEFT(cFileType, 1) == '.'
-			cFileType = SUBSTR(cFileType, 2)
-		ENDIF
+		cFileType = Alltrim(Upper(cFileType))
+		If Left(cFileType, 1) == '.'
+			cFileType = Substr(cFileType, 2)
+		Endif
 
-		lSuccess = .F.		
-		
+		lSuccess = .F.
+
 		nIndex = 0
-		IF VARTYPE(cFileType) <> 'C' OR EMPTY(cFileType)
+		If Vartype(cFileType) <> 'C' Or Empty(cFileType)
 			cFileType = ''
 			nIndex = 1 && default search engine always the first row in the array
-		ELSE
-			IF THIS.nFileTypeCnt > 0
-				nIndex = ASCAN(THIS.aFileTypes, cFileType, -1, -1, 1, 14)  && 14 = return row number, Exact On
-			ENDIF
-		ENDIF
-		IF PCOUNT() == 1
-			IF nIndex > 0
+		Else
+			If This.nFileTypeCnt > 0
+				nIndex = Ascan(This.aFileTypes, cFileType, -1, -1, 1, 14)  && 14 = return row number, Exact On
+			Endif
+		Endif
+		If Pcount() == 1
+			If nIndex > 0
 				* remove filetype
-				=ADEL(THIS.aFileTypes, nIndex, 2)
-				THIS.nFileTypeCnt = THIS.nFileTypeCnt - 1
-				
+				=Adel(This.aFileTypes, nIndex, 2)
+				This.nFileTypeCnt = This.nFileTypeCnt - 1
+
 				lSuccess = .T.
-			ENDIF
-		ELSE
-			IF VARTYPE(cClassLibrary) <> 'C' OR EMPTY(cClassLibrary)
+			Endif
+		Else
+			If Vartype(cClassLibrary) <> 'C' Or Empty(cClassLibrary)
 				cClassLibrary = FILETYPE_LIBRARY
-			ENDIF
-			oEngine = NEWOBJECT(cClassName, cClassLibrary)
-			IF VARTYPE(oEngine) == 'O'
-				IF nIndex == 0 OR THIS.nFileTypeCnt == 0
-					THIS.nFileTypeCnt = THIS.nFileTypecnt + 1
-					nIndex = THIS.nFileTypeCnt
-					DIMENSION THIS.aFileTypes[THIS.nFileTypeCnt, 2]
-				ENDIF
-				THIS.aFileTypes[nIndex, FILETYPE_EXTENSION] = cFileType
-				THIS.aFileTypes[nIndex, FILETYPE_ENGINE]    = oEngine
-				
+			Endif
+			oEngine = Newobject(cClassName, cClassLibrary)
+			If Vartype(oEngine) == 'O'
+				If nIndex == 0 Or This.nFileTypeCnt == 0
+					This.nFileTypeCnt = This.nFileTypeCnt + 1
+					nIndex = This.nFileTypeCnt
+					Dimension This.aFileTypes[THIS.nFileTypeCnt, 2]
+				Endif
+				This.aFileTypes[nIndex, FILETYPE_EXTENSION] = cFileType
+				This.aFileTypes[nIndex, FILETYPE_ENGINE]    = oEngine
+
 				lSuccess = .T.
-			ENDIF
-		ENDIF
+			Endif
+		Endif
 
-		RETURN lSuccess
-	ENDFUNC
+		Return lSuccess
+	Endfunc
 
-	PROCEDURE SearchInit()
-		LOCAL i
+	Procedure SearchInit()
+		Local i
 
-		IF THIS.Wildcards
-			THIS.oSearchEngine = NEWOBJECT("Wildcard", "foxmatch.prg")
-		ELSE
-			THIS.oSearchEngine = NEWOBJECT("MatchDefault", "foxmatch.prg")
-		ENDIF
-		THIS.oSearchEngine.MatchCase      = THIS.MatchCase
-		THIS.oSearchEngine.WholeWordsOnly = THIS.WholeWordsOnly
-		
-		FOR i = 1 TO THIS.nFileTypecnt
-			WITH THIS.aFileTypes[i, FILETYPE_ENGINE]
-				.SetID          = THIS.cSetID
-				.oSearchEngine  = THIS.oSearchEngine
-				.Pattern        = THIS.Pattern
-				.Comments       = THIS.Comments
-			ENDWITH
-		ENDFOR
-	ENDPROC
+		If This.WildCards
+			This.oSearchEngine = Newobject("Wildcard", "foxmatch.prg")
+		Else
+			This.oSearchEngine = Newobject("MatchDefault", "foxmatch.prg")
+		Endif
+		This.oSearchEngine.MatchCase      = This.MatchCase
+		This.oSearchEngine.WholeWordsOnly = This.WholeWordsOnly
+
+		For i = 1 To This.nFileTypeCnt
+			With This.aFileTypes[i, FILETYPE_ENGINE]
+				.SetID          = This.cSetID
+				.oSearchEngine  = This.oSearchEngine
+				.Pattern        = This.Pattern
+				.Comments       = This.Comments
+			Endwith
+		Endfor
+	Endproc
 
 
 
 	* Do a replacement on designated file
-	FUNCTION ReplaceFile(cUniqueID, cReplaceText)
-		LOCAL nSelect
-		LOCAL nFileTypeIndex
-		LOCAL cFileType
-		LOCAL oFoxRefRecord
-		LOCAL lSuccess
-		
+	Function ReplaceFile(cUniqueID, cReplaceText)
+		Local nSelect
+		Local nFileTypeIndex
+		Local cFileType
+		Local oFoxRefRecord
+		Local lSuccess
+
 		lSuccess = .F.
-		IF USED("FoxRefCursor") AND VARTYPE(cUniqueID) == 'C' AND !EMPTY(cUniqueID) AND (FoxRefCursor.UniqueID == cUniqueID OR SEEK(cUniqueID, "FoxRefCursor", "UniqueID"))
-			nSelect = SELECT()
+		If Used("FoxRefCursor") And Vartype(cUniqueID) == 'C' And !Empty(cUniqueID) And (FoxRefCursor.UniqueID == cUniqueID Or Seek(cUniqueID, "FoxRefCursor", "UniqueID"))
+			nSelect = Select()
 
-			cFilename = ADDBS(RTRIM(FoxRefCursor.Folder)) + RTRIM(FoxRefCursor.Filename)
-			IF FILE(cFilename)
-				cFileType = UPPER(JUSTEXT(cFilename))
+			cFilename = Addbs(Rtrim(FoxRefCursor.Folder)) + Rtrim(FoxRefCursor.Filename)
+			If File(cFilename)
+				cFileType = Upper(Justext(cFilename))
 
-				nFileTypeIndex = ASCAN(THIS.aFileTypes, cFileType, -1, -1, 1, 14)  && 14 = return row number, Exact On
-				IF nFileTypeIndex == 0
+				nFileTypeIndex = Ascan(This.aFileTypes, cFileType, -1, -1, 1, 14)  && 14 = return row number, Exact On
+				If nFileTypeIndex == 0
 					nFileTypeIndex = 1  && this is the default search/replace engine to use
-				ENDIF
+				Endif
 
-				SELECT FoxRefCursor
-				SCATTER MEMO NAME oFoxRefRecord
-				WITH THIS.aFileTypes[nFileTypeIndex, FILETYPE_ENGINE]
+				Select FoxRefCursor
+				Scatter Memo Name oFoxRefRecord
+				With This.aFileTypes[nFileTypeIndex, FILETYPE_ENGINE]
 					lSuccess = .ReplaceWith(cReplaceText, oFoxRefRecord)
-				ENDWITH
-			ENDIF
-			
-			SELECT (nSelect)
-		ENDIF
+				Endwith
+			Endif
 
-		RETURN lSuccess
-	ENDFUNC
-	
+			Select (nSelect)
+		Endif
 
-	
+		Return lSuccess
+	Endfunc
 
-	PROCEDURE FileTypes_Assign(cFileTypes)
-		THIS.FileTypes = CHRTRAN(cFileTypes, ',;', '  ')
-	ENDFUNC
 
-	FUNCTION CreateRefTable(cRefTable)
-		LOCAL lSuccess
-		LOCAL cSafety
+
+
+	Procedure FileTypes_Assign(cFileTypes)
+		This.FileTypes = Chrtran(cFileTypes, ',;', '  ')
+	Endfunc
+
+	Function CreateRefTable(cRefTable)
+		Local lSuccess
+		Local cSafety
 
 		lSuccess = .T.
 
-		THIS.RefTable = ''
-		
-		cSafety = SET("SAFETY")
-		SET SAFETY OFF
-		IF USED(JUSTSTEM(cRefTable))
-			USE IN (cRefTable)
-		ENDIF
+		This.RefTable = ''
 
-		CREATE TABLE (cRefTable) FREE ( ;
-	 	  UniqueID C(10), ;
-		  SetID C(10), ;
-		  RefID C(10), ;
-	 	  RefType C(1), ;
-	 	  DefType C(1), ;
-	 	  Folder C(240), ;
-		  Filename C(100), ;
-		  Symbol C(254), ;
-		  ClassName C(254), ;
-		  ProcName C(254), ;
-		  ProcLineNo I, ;
-		  LineNo I, ;
-		  ColPos I, ;
-		  MatchLen I, ;
-		  RefCode C(254), ;
-		  RecordID C(10), ;
-		  UpdField C(10), ;
-		  Checked L, ;
-		  TimeStamp T NULL, ;
-		  Inactive L ;
-		 )
-		INDEX ON RefType TAG RefType
-		INDEX ON SetID TAG SetID
-		INDEX ON RefID TAG RefID
-		INDEX ON UniqueID TAG UniqueID
-		INDEX ON Filename TAG Filename
-		INDEX ON Checked TAG Checked
+		cSafety = Set("SAFETY")
+		Set Safety Off
+		If Used(Juststem(cRefTable))
+			Use In (cRefTable)
+		Endif
+
+		Create Table (cRefTable) Free ( ;
+			UniqueID C(10), ;
+			SetID C(10), ;
+			RefID C(10), ;
+			RefType C(1), ;
+			DefType C(1), ;
+			Folder C(240), ;
+			Filename C(100), ;
+			Symbol C(254), ;
+			ClassName C(254), ;
+			ProcName C(254), ;
+			ProcLineNo i, ;
+			LineNo i, ;
+			ColPos i, ;
+			MatchLen i, ;
+			RefCode C(254), ;
+			RecordID C(10), ;
+			UpdField C(10), ;
+			Checked L, ;
+			TimeStamp T Null, ;
+			oTimeStamp N(10) Null, ;
+			Inactive L ;
+			)
+		Index On RefType Tag RefType
+		Index On SetID Tag SetID
+		Index On RefID Tag RefID
+		Index On UniqueID Tag UniqueID
+		Index On Filename Tag Filename
+		Index On Checked Tag Checked
 
 
 		* add the record that holds our results window search position & other options
-		INSERT INTO (cRefTable) ( ;
-		  UniqueID, ;
-		  SetID, ;
-		  RefType, ;
-		  Folder, ;
-		  FileName, ;
-		  Symbol, ;
-		  ClassName, ;
-		  ProcName, ;
-		  ProcLineNo, ;
-		  LineNo, ;
-		  ColPos, ;
-		  MatchLen, ;
-		  RefCode, ;
-		  RecordID, ;
-		  UpdField, ;
-		  Timestamp, ;
-		  Inactive ;
-		 ) VALUES ( ;
-		  SYS(2015), ;
-		  '', ;
-		  REFTYPE_INIT, ;
-		  THIS.ProjectFile, ;
-		  '', ;
-		  '', ;
-		  '', ;
-		  '', ;
-		  0, ;
-		  0, ;
-		  0, ;
-		  0, ;
-		  '', ;
-		  '', ;
-		  '', ;
-		  DATETIME(), ;
-		  .F. ;
-		 )
-*		  IIF(THIS.ProjectName == PROJECT_GLOBAL, cProjectOrDir, ''), ;
-*		  IIF(!(THIS.ProjectName == PROJECT_GLOBAL), cProjectOrDir, ''), ;
-*		  IIF(cScope == SCOPE_FOLDER, cProjectOrDir, ''), ;
-*		  IIF(cScope <> SCOPE_FOLDER, cProjectOrDir, ''), ;
+		Insert Into (cRefTable) ( ;
+			UniqueID, ;
+			SetID, ;
+			RefType, ;
+			Folder, ;
+			Filename, ;
+			Symbol, ;
+			ClassName, ;
+			ProcName, ;
+			ProcLineNo, ;
+			LineNo, ;
+			ColPos, ;
+			MatchLen, ;
+			RefCode, ;
+			RecordID, ;
+			UpdField, ;
+			Timestamp, ;
+			Inactive ;
+			) Values ( ;
+			SYS(2015), ;
+			'', ;
+			REFTYPE_INIT, ;
+			THIS.ProjectFile, ;
+			'', ;
+			'', ;
+			'', ;
+			'', ;
+			0, ;
+			0, ;
+			0, ;
+			0, ;
+			'', ;
+			'', ;
+			'', ;
+			DATETIME(), ;
+			.F. ;
+			)
+		*		  IIF(THIS.ProjectName == PROJECT_GLOBAL, cProjectOrDir, ''), ;
+		*		  IIF(!(THIS.ProjectName == PROJECT_GLOBAL), cProjectOrDir, ''), ;
+		*		  IIF(cScope == SCOPE_FOLDER, cProjectOrDir, ''), ;
+		*		  IIF(cScope <> SCOPE_FOLDER, cProjectOrDir, ''), ;
 
-		THIS.RefTable = cRefTable
+		This.RefTable = cRefTable
 
-		USE IN (JUSTSTEM(cRefTable))
+		Use In (Juststem(cRefTable))
 
-		SET Safety &cSafety
+		Set Safety &cSafety
 
-		RETURN lSuccess
-	ENDFUNC
-	
-	* Open a FoxRef table 
+		Return lSuccess
+	Endfunc
+
+	* Open a FoxRef table
 	* Return TRUE if table exists and it's in the correct format
 	* [lCreate] = True to create table if it doesn't exist
-	FUNCTION OpenRefTable(cRefTable)
-		LOCAL lSuccess
+	Function OpenRefTable(cRefTable)
+		Local lSuccess
 
-		IF USED("FoxRefCursor")
-			USE IN FoxRefCursor
-		ENDIF		
-		THIS.RefTable = ''
+		If Used("FoxRefCursor")
+			Use In FoxRefCursor
+		Endif
+		This.RefTable = ''
 
 		lSuccess = .T.
 
-		IF !FILE(FORCEEXT(cRefTable, "DBF"))
-			lSuccess = THIS.CreateRefTable(cRefTable)
-		ENDIF
+		If !File(Forceext(cRefTable, "DBF"))
+			lSuccess = This.CreateRefTable(cRefTable)
+		Endif
 
-		IF lSuccess
-			USE (cRefTable) ALIAS FoxRefCursor IN 0 SHARED AGAIN
-			IF TYPE("FoxRefCursor.RefType") == 'C'
-				THIS.RefTable = cRefTable
-			ELSE
+		If lSuccess
+			Use (cRefTable) Alias FoxRefCursor In 0 Shared Again
+			If Type("FoxRefCursor.RefType") == 'C'
+				This.RefTable = cRefTable
+			Else
 				lSuccess = .F.
-				MESSAGEBOX(BADTABLE_LOC + CHR(10) + CHR(10) + FORCEEXT(cRefTable, "DBF"), MB_ICONSTOP, APPNAME_LOC)
-			ENDIF
-		ENDIF
-		
-		RETURN lSuccess
-	ENDFUNC
+				Messagebox(BADTABLE_LOC + Chr(10) + Chr(10) + Forceext(cRefTable, "DBF"), MB_ICONSTOP, APPNAME_LOC)
+			Endif
+		Endif
+
+		Return lSuccess
+	Endfunc
 
 	* Abstract:
 	*   Set a specific project to display result sets for.
@@ -421,1290 +422,1301 @@ DEFINE CLASS FoxRef AS Session
 	*
 	* Parameters:
 	*   [cProject]
-	FUNCTION SetProject(cProjectFile, lOverwrite)
-		LOCAL lInUse
-		LOCAL lSuccess
-		LOCAL cRefTable
-		LOCAL i
-		LOCAL lFoundProject
-		
+	Function SetProject(cProjectFile, lOverwrite)
+		Local lInUse
+		Local lSuccess
+		Local cRefTable
+		Local i
+		Local lFoundProject
+
 		lSuccess = .F.
 
-		IF VARTYPE(cProjectFile) <> 'C' 
-			cProjectfile = THIS.ProjectFile
-		ENDIF
-		IF EMPTY(cProjectFile)
+		If Vartype(cProjectFile) <> 'C'
+			cProjectFile = This.ProjectFile
+		Endif
+		If Empty(cProjectFile)
 			* use the active project if a project name is not passsed
-			IF Application.Projects.Count > 0
+			If Application.Projects.Count > 0
 				cProjectFile = Application.ActiveProject.Name
-			ELSE
+			Else
 				cProjectFile = PROJECT_GLOBAL
-			ENDIF
-			
-			lSuccess = .T.
-		ELSE
-			* make sure Project specified is open
-			IF cProjectFile == PROJECT_GLOBAL
-				lSuccess = .T.
-			ELSE
-				cProjectFile = UPPER(FORCEEXT(FULLPATH(cProjectFile), "PJX"))
+			Endif
 
-				FOR i = 1 TO Application.Projects.Count
-					IF UPPER(Application.Projects(i).Name) == cProjectFile
+			lSuccess = .T.
+		Else
+			* make sure Project specified is open
+			If cProjectFile == PROJECT_GLOBAL
+				lSuccess = .T.
+			Else
+				cProjectFile = Upper(Forceext(Fullpath(cProjectFile), "PJX"))
+
+				For i = 1 To Application.Projects.Count
+					If Upper(Application.Projects(i).Name) == cProjectFile
 						cProjectFile = Application.Projects(i).Name
 						lSuccess = .T.
-						EXIT
-					ENDIF
-				ENDFOR
-				IF !lSuccess
-					IF FILE(cProjectFile)
+						Exit
+					Endif
+				Endfor
+				If !lSuccess
+					If File(cProjectFile)
 						* open the project
-						MODIFY PROJECT (cProjectFile) NOWAIT
-						
+						Modify Project (cProjectFile) Nowait
+
 						* search again to find where in the Projects collection it is
-						FOR i = 1 TO Application.Projects.Count
-							IF UPPER(Application.Projects(i).Name) == cProjectFile
+						For i = 1 To Application.Projects.Count
+							If Upper(Application.Projects(i).Name) == cProjectFile
 								cProjectFile = Application.Projects(i).Name
 								lSuccess = .T.
-								EXIT
-							ENDIF
-						ENDFOR
-					ENDIF
-				ENDIF
-			ENDIF
-		ENDIF
+								Exit
+							Endif
+						Endfor
+					Endif
+				Endif
+			Endif
+		Endif
 
 
-		IF lSuccess
-			IF EMPTY(cProjectFile) OR cProjectFile == PROJECT_GLOBAL
-				THIS.ProjectFile = PROJECT_GLOBAL
-				cRefTable        = ADDBS(HOME()) + GLOBAL_TABLE + RESULT_EXT
-			ELSE
-				THIS.ProjectFile = UPPER(cProjectFile)
-				cRefTable        = ADDBS(JUSTPATH(cProjectFile)) + JUSTSTEM(cProjectFile) + RESULT_EXT
-			ENDIF
+		If lSuccess
+			If Empty(cProjectFile) Or cProjectFile == PROJECT_GLOBAL
+				This.ProjectFile = PROJECT_GLOBAL
+				cRefTable        = Addbs(Home()) + GLOBAL_TABLE + RESULT_EXT
+			Else
+				This.ProjectFile = Upper(cProjectFile)
+				cRefTable        = Addbs(Justpath(cProjectFile)) + Juststem(cProjectFile) + RESULT_EXT
+			Endif
 
-			IF lOverwrite
-				lSuccess = THIS.CreateRefTable(cRefTable)
-			ELSE
-				lSuccess = THIS.OpenRefTable(cRefTable)
-			ENDIF
-		ENDIF
+			If lOverwrite
+				lSuccess = This.CreateRefTable(cRefTable)
+			Else
+				lSuccess = This.OpenRefTable(cRefTable)
+			Endif
+		Endif
 
-		RETURN lSuccess
-	ENDFUNC
-
-
-	FUNCTION Search(cPattern)
-		IF VARTYPE(cPattern) <> 'C' OR EMPTY(cPattern)
-			DO FORM FoxRefFind WITH THIS
-		ELSE
-			IF THIS.SetProject(, THIS.OverwritePrior)
-				IF THIS.ProjectFile == PROJECT_GLOBAL OR EMPTY(THIS.ProjectFile)
-					THIS.FolderSearch(cPattern)
-				ELSE
-					THIS.ProjectSearch(cPattern)
-				ENDIF
-			ENDIF
-		ENDIF
-	ENDFUNC
+		Return lSuccess
+	Endfunc
 
 
-	* Determine if the Reference table we want to open is 
+	Function Search(cPattern)
+		If Vartype(cPattern) <> 'C' Or Empty(cPattern)
+			Do Form FoxRefFind With This
+		Else
+			If This.SetProject(, This.OverwritePrior)
+				If This.ProjectFile == PROJECT_GLOBAL Or Empty(This.ProjectFile)
+					This.FolderSearch(cPattern)
+				Else
+					This.ProjectSearch(cPattern)
+				Endif
+			Endif
+		Endif
+	Endfunc
+
+
+	* Determine if the Reference table we want to open is
 	* actually one of ours.  If we're overwriting or a reference
-	* table doesn't exist for this project, then create a new 
+	* table doesn't exist for this project, then create a new
 	* Reference Table.
 	*
 	* Once we have a reference table, then we add a new record
 	* that represents the search criteria for this particular
 	* search.
-	FUNCTION UpdateRefTable(cScope, cPattern, cProjectOrDir)
-		LOCAL nSelect
-		LOCAL cSafety
-		LOCAL cSearchOptions
-		LOCAL cRefTable
-		
-		nSelect = SELECT()
-		
-		IF VARTYPE(cRefTable) <> 'C' OR EMPTY(cRefTable)
-			cRefTable = THIS.RefTable
-		ENDIF
+	Function UpdateRefTable(cScope, cPattern, cProjectOrDir)
+		Local nSelect
+		Local cSafety
+		Local cSearchOptions
+		Local cRefTable
 
-		IF EMPTY(cRefTable)
-			RETURN .F.
-		ENDIF
+		nSelect = Select()
 
-		IF USED("FoxRefCursor")
-			USE IN FoxRefCursor
-		ENDIF
+		If Vartype(cRefTable) <> 'C' Or Empty(cRefTable)
+			cRefTable = This.RefTable
+		Endif
 
-*!*			IF FILE(FORCEEXT(cRefTable, "DBF"))
-*!*				IF !THIS.OpenRefTable(cRefTable)
-*!*					RETURN .F.
-*!*				ENDIF
-*!*			ENDIF
+		If Empty(cRefTable)
+			Return .F.
+		Endif
 
-		IF !THIS.OpenRefTable(cRefTable)
-			RETURN .F.
-		ENDIF
+		If Used("FoxRefCursor")
+			Use In FoxRefCursor
+		Endif
 
-		THIS.tTimeStamp = DATETIME()
+		*!*			IF FILE(FORCEEXT(cRefTable, "DBF"))
+		*!*				IF !THIS.OpenRefTable(cRefTable)
+		*!*					RETURN .F.
+		*!*				ENDIF
+		*!*			ENDIF
+
+		If !This.OpenRefTable(cRefTable)
+			Return .F.
+		Endif
+
+		This.tTimeStamp = Datetime()
 
 
 		* build a string representing the search options that
 		* we can store to the FoxRef cursor
-		cSearchOptions = IIF(THIS.Comments == COMMENTS_EXCLUDE, 'X', '') + ;
-		                 IIF(THIS.Comments == COMMENTS_ONLY, 'C', '') + ;
-		                 IIF(THIS.MatchCase, 'M', '') + ;
-		                 IIF(THIS.WholeWordsOnly, 'W', '') + ;
-		                 IIF(THIS.SubFolders, 'S', '') + ;
-		                 IIF(THIS.Wildcards, 'Z', '') + ;
-		                 ';' + THIS.FileTypes
-		
-		
+		cSearchOptions = Iif(This.Comments == COMMENTS_EXCLUDE, 'X', '') + ;
+			IIF(This.Comments == COMMENTS_ONLY, 'C', '') + ;
+			IIF(This.MatchCase, 'M', '') + ;
+			IIF(This.WholeWordsOnly, 'W', '') + ;
+			IIF(This.SubFolders, 'S', '') + ;
+			IIF(This.WildCards, 'Z', '') + ;
+			';' + This.FileTypes
+
+
 		* if we've already searched for this same exact symbol
 		* with the same exact criteria in the same exact project/folder,
 		* then simply update what we have
-		SELECT FoxRefCursor
-		LOCATE FOR RefType == REFTYPE_SEARCH AND Folder == PADR(cProjectOrDir, LEN(FoxRefCursor.Folder)) AND Symbol == PADR(cPattern + PATTERN_EOL, LEN(FoxRefCursor.Symbol)) AND RefCode == PADR(cSearchOptions, LEN(FoxRefCursor.RefCode))
-		THIS.lRefreshMode = FOUND()
-		IF THIS.lRefreshMode
-			THIS.tTimeStamp = FoxRefCursor.TimeStamp
+		Select FoxRefCursor
+		Locate For RefType == REFTYPE_SEARCH And Folder == Padr(cProjectOrDir, Len(FoxRefCursor.Folder)) And Symbol == Padr(cPattern + PATTERN_EOL, Len(FoxRefCursor.Symbol)) And RefCode == Padr(cSearchOptions, Len(FoxRefCursor.RefCode))
+		This.lRefreshMode = Found()
+		If This.lRefreshMode
+			This.tTimeStamp = FoxRefCursor.Timestamp
 
-			THIS.cSetID = FoxRefCursor.SetID
-			REPLACE ALL Inactive WITH .T. ;
-			  FOR SetID == THIS.cSetID AND (RefType == REFTYPE_RESULT OR RefType == REFTYPE_DEFINITION) ;
-			 IN FoxRefCursor
-		ELSE
-			THIS.cSetID = SYS(2015)
-	
+			This.cSetID = FoxRefCursor.SetID
+			Replace All Inactive With .T. ;
+				FOR SetID == This.cSetID And (RefType == REFTYPE_RESULT Or RefType == REFTYPE_DEFINITION) ;
+				IN FoxRefCursor
+		Else
+			This.cSetID = Sys(2015)
+
 			* add the record that specifies the search criteria, etc
-			INSERT INTO FoxRefCursor ( ;
-			  UniqueID, ;
-			  SetID, ;
-			  RefType, ;
-			  Folder, ;
-			  FileName, ;
-			  Symbol, ;
-			  ClassName, ;
-			  ProcName, ;
-			  ProcLineNo, ;
-			  LineNo, ;
-			  ColPos, ;
-			  MatchLen, ;
-			  RefCode, ;
-			  RecordID, ;
-			  UpdField, ;
-			  Timestamp, ;
-			  Inactive ;
-			 ) VALUES ( ;
-			  SYS(2015), ;
-			  THIS.cSetID, ;
-			  REFTYPE_SEARCH, ;
-			  cProjectOrDir, ;
-			  '', ;
-			  cPattern + PATTERN_EOL, ;
-			  '', ;
-			  '', ;
-			  0, ;
-			  0, ;
-			  0, ;
-			  0, ;
-			  cSearchOptions, ;
-			  '', ;
-			  '', ;
-			  THIS.tTimeStamp, ;
-			  .F. ;
-			 )
-		ENDIF
-		
-		SELECT (nSelect)
-		
-		RETURN .T.
-	ENDFUNC
+			Insert Into FoxRefCursor ( ;
+				UniqueID, ;
+				SetID, ;
+				RefType, ;
+				Folder, ;
+				Filename, ;
+				Symbol, ;
+				ClassName, ;
+				ProcName, ;
+				ProcLineNo, ;
+				LineNo, ;
+				ColPos, ;
+				MatchLen, ;
+				RefCode, ;
+				RecordID, ;
+				UpdField, ;
+				Timestamp, ;
+				Inactive ;
+				) Values ( ;
+				SYS(2015), ;
+				THIS.cSetID, ;
+				REFTYPE_SEARCH, ;
+				cProjectOrDir, ;
+				'', ;
+				cPattern + PATTERN_EOL, ;
+				'', ;
+				'', ;
+				0, ;
+				0, ;
+				0, ;
+				0, ;
+				cSearchOptions, ;
+				'', ;
+				'', ;
+				THIS.tTimeStamp, ;
+				.F. ;
+				)
+		Endif
+
+		Select (nSelect)
+
+		Return .T.
+	Endfunc
 
 
 	* -- Search a Folder
-	FUNCTION FolderSearch(cPattern, cFileDir)
-		LOCAL nFileCnt
-		LOCAL i, j
-		LOCAL cFileDir
-		LOCAL nFileTypesCnt
-		LOCAL cFileTypes
-		LOCAL lAutoYield
-		LOCAL ARRAY aFileList[1]
-		LOCAL ARRAY aFileTypes[1]
+	Function FolderSearch(cPattern, cFileDir)
+		Local nFileCnt
+		Local i, j
+		Local cFileDir
+		Local nFileTypesCnt
+		Local cFileTypes
+		Local lAutoYield
+		Local Array aFileList[1]
+		Local Array aFileTypes[1]
 
-		IF VARTYPE(cPattern) <> 'C'
-			cPattern = THIS.Pattern
-		ENDIF
+		If Vartype(cPattern) <> 'C'
+			cPattern = This.Pattern
+		Endif
 
-		IF VARTYPE(cFileDir) <> 'C' OR EMPTY(cFileDir)
-			cFileDir = ADDBS(THIS.FileDirectory)
-		ELSE
-			cFileDir = ADDBS(cFileDir)
-		ENDIF
-		
-		IF !DIRECTORY(cFileDir)
-			RETURN .F.
-		ENDIF
+		If Vartype(cFileDir) <> 'C' Or Empty(cFileDir)
+			cFileDir = Addbs(This.FileDirectory)
+		Else
+			cFileDir = Addbs(cFileDir)
+		Endif
 
-		THIS.SetProject(PROJECT_GLOBAL, THIS.OverwritePrior)
-		
-		IF !THIS.UpdateRefTable(SCOPE_FOLDER, cPattern, cFileDir)
-			RETURN .F.
-		ENDIF
+		If !Directory(cFileDir)
+			Return .F.
+		Endif
 
-		THIS.SearchInit()
-		
-		
-		cFileTypes = CHRTRAN(THIS.FileTypes, ',;', '  ')
-		nFileTypesCnt = ALINES(aFileTypes, cFileTypes, .T., ' ')
+		This.SetProject(PROJECT_GLOBAL, This.OverwritePrior)
 
-		lAutoYield = _VFP.AutoYield
-		_VFP.AutoYield = .T.
+		If !This.UpdateRefTable(SCOPE_FOLDER, cPattern, cFileDir)
+			Return .F.
+		Endif
+
+		This.SearchInit()
 
 
-		THIS.ProcessFolder(cFileDir, cPattern, @aFileTypes, nFileTypesCnt)
+		cFileTypes = Chrtran(This.FileTypes, ',;', '  ')
+		nFileTypesCnt = Alines(aFileTypes, cFileTypes, .T., ' ')
 
-		THIS.CloseProgress()
-		
-		_VFP.AutoYield = lAutoYield
+		lAutoYield = _vfp.AutoYield
+		_vfp.AutoYield = .T.
 
-		THIS.UpdateLookForMRU(cPattern)
-		THIS.UpdateFolderMRU(cFileDir)
-		THIS.UpdateFileTypesMRU(cFileTypes)
-		
-		RETURN .T.
-	ENDFUNC
+
+		This.ProcessFolder(cFileDir, cPattern, @aFileTypes, nFileTypesCnt)
+
+		This.CloseProgress()
+
+		_vfp.AutoYield = lAutoYield
+
+		This.UpdateLookForMRU(cPattern)
+		This.UpdateFolderMRU(cFileDir)
+		This.UpdateFileTypesMRU(cFileTypes)
+
+		Return .T.
+	Endfunc
 
 	* used in conjuction with FolderSearch() for
 	* when we're searching subfolders
-	FUNCTION ProcessFolder(cFileDir, cPattern, aFileTypes, nFileTypesCnt)
-		LOCAL nFileCnt
-		LOCAL nFolderCnt
-		LOCAL cFilename
-		LOCAL i, j
-		LOCAL ARRAY aFileList[1]
-		LOCAL ARRAY aFolderList[1]
+	Function ProcessFolder(cFileDir, cPattern, aFileTypes, nFileTypesCnt)
+		Local nFileCnt
+		Local nFolderCnt
+		Local cFilename
+		Local i, j
+		Local Array aFileList[1]
+		Local Array aFolderList[1]
 
-		cFileDir = ADDBS(cFileDir)
-		FOR i = 1 TO nFileTypesCnt
-			IF THIS.lCancel
-				EXIT
-			ENDIF
+		cFileDir = Addbs(cFileDir)
+		For i = 1 To nFileTypesCnt
+			If This.lCancel
+				Exit
+			Endif
 
-			nFileCnt = ADIR(aFileList, cFileDir + aFileTypes[i], '', 1)
-			FOR j = 1 TO nFileCnt
-				IF THIS.lCancel
-					EXIT
-				ENDIF
+			nFileCnt = Adir(aFileList, cFileDir + aFileTypes[i], '', 1)
+			For j = 1 To nFileCnt
+				If This.lCancel
+					Exit
+				Endif
 
 				cFilename = aFileList[j, 1]
 
-				THIS.FileSearch(cFileDir + cFilename, cPattern)
-			ENDFOR
-		ENDFOR
-		
+				This.FileSearch(cFileDir + cFilename, cPattern)
+			Endfor
+		Endfor
+
 		* Process any sub-directories
-		IF !THIS.lCancel
-			IF THIS.SubFolders
-				nFolderCnt = ADIR(aFolderList, cFileDir + "*.*", 'D', 1)
-				FOR i = 1 TO nFolderCnt
-					IF !aFolderList[i, 1] == '.' AND !aFolderList[i, 1] == '..' AND 'D'$aFolderList[i, 5] AND DIRECTORY(cFileDir + aFolderList[i, 1])
-						THIS.ProcessFolder(cFileDir + aFolderList[i, 1], cPattern, @aFileTypes, nFileTypesCnt)
-					ENDIF
-					IF THIS.lCancel
-						EXIT
-					ENDIF
-				ENDFOR
-			ENDIF
-		ENDIF
-	ENDFUNC
+		If !This.lCancel
+			If This.SubFolders
+				nFolderCnt = Adir(aFolderList, cFileDir + "*.*", 'D', 1)
+				For i = 1 To nFolderCnt
+					If !aFolderList[i, 1] == '.' And !aFolderList[i, 1] == '..' And 'D'$aFolderList[i, 5] And Directory(cFileDir + aFolderList[i, 1])
+						This.ProcessFolder(cFileDir + aFolderList[i, 1], cPattern, @aFileTypes, nFileTypesCnt)
+					Endif
+					If This.lCancel
+						Exit
+					Endif
+				Endfor
+			Endif
+		Endif
+	Endfunc
 
-	
+
 	* -- Search files in a Project
-	FUNCTION ProjectSearch(cPattern, cProjectFile)
-		LOCAL nFileIndex
-		LOCAL nProjectIndex
-		LOCAL oProjectRef
-		LOCAL oFileRef
-		LOCAL cFileTypes
-		LOCAL nFileTypesCnt
-		LOCAL lAutoYield
-		LOCAL lSuccess
-		LOCAL ARRAY aFileTypes[1]
-		LOCAL ARRAY aFileList[1]
+	Function ProjectSearch(cPattern, cProjectFile)
+		Local nFileIndex
+		Local nProjectIndex
+		Local oProjectRef
+		Local oFileRef
+		Local cFileTypes
+		Local nFileTypesCnt
+		Local lAutoYield
+		Local lSuccess
+		Local Array aFileTypes[1]
+		Local Array aFileList[1]
 
-		IF VARTYPE(cPattern) <> 'C'
-			cPattern = THIS.Pattern
-		ENDIF
-		
-*!*			IF VARTYPE(cProjectFile) == 'C' AND !EMPTY(cProjectFile)
-*!*				cProjectFile = UPPER(FORCEEXT(FULLPATH(cProjectFile), "PJX"))
-*!*			ELSE
-*!*				cProjectFile = ''
-*!*			ENDIF
+		If Vartype(cPattern) <> 'C'
+			cPattern = This.Pattern
+		Endif
 
-*!*			IF !THIS.SetProject(cProjectFile)
-*!*				RETURN .F.
-*!*			ENDIF
-		IF VARTYPE(cProjectFile) <> 'C' OR EMPTY(cProjectFile)
-			cProjectFile = THIS.ProjectFile
-		ENDIF
-		IF !THIS.SetProject(cProjectFile, THIS.OverwritePrior)
-			RETURN .F.
-		ENDIF
-		
+		*!*			IF VARTYPE(cProjectFile) == 'C' AND !EMPTY(cProjectFile)
+		*!*				cProjectFile = UPPER(FORCEEXT(FULLPATH(cProjectFile), "PJX"))
+		*!*			ELSE
+		*!*				cProjectFile = ''
+		*!*			ENDIF
 
-		IF !THIS.UpdateRefTable(SCOPE_PROJECT, cPattern, THIS.ProjectFile)
-			RETURN .F.
-		ENDIF
+		*!*			IF !THIS.SetProject(cProjectFile)
+		*!*				RETURN .F.
+		*!*			ENDIF
+		If Vartype(cProjectFile) <> 'C' Or Empty(cProjectFile)
+			cProjectFile = This.ProjectFile
+		Endif
+		If !This.SetProject(cProjectFile, This.OverwritePrior)
+			Return .F.
+		Endif
 
-		THIS.SearchInit()
 
-		cFileTypes = THIS.FileTypes
+		If !This.UpdateRefTable(SCOPE_PROJECT, cPattern, This.ProjectFile)
+			Return .F.
+		Endif
 
-		lAutoYield = _VFP.AutoYield
-		_VFP.AutoYield = .T.
+		This.SearchInit()
 
-		FOR EACH oProjectRef IN Application.Projects
-			IF UPPER(oProjectRef.Name) == THIS.ProjectFile
+		cFileTypes = This.FileTypes
+
+		lAutoYield = _vfp.AutoYield
+		_vfp.AutoYield = .T.
+
+		For Each oProjectRef In Application.Projects
+			If Upper(oProjectRef.Name) == This.ProjectFile
 				* process each file in the project
-				FOR EACH oFileRef IN oProjectRef.Files
-					IF THIS.WildCardMatch(cFileTypes, JUSTFNAME(oFileRef.Name))
-						THIS.FileSearch(oFileRef.Name, cPattern)
-					ENDIF
-					IF THIS.lCancel
-						EXIT
-					ENDIF
-				ENDFOR
-				
-				EXIT
-			ENDIF
-		ENDFOR
-		THIS.CloseProgress()
+				For Each oFileRef In oProjectRef.Files
+					If This.WildCardMatch(cFileTypes, Justfname(oFileRef.Name))
+						This.FileSearch(oFileRef.Name, cPattern)
+					Endif
+					If This.lCancel
+						Exit
+					Endif
+				Endfor
 
-		_VFP.AutoYield = lAutoYield
+				Exit
+			Endif
+		Endfor
+		This.CloseProgress()
 
-		THIS.UpdateLookForMRU(cPattern)
-		THIS.UpdateFileTypesMRU(cFileTypes)
-				
-		RETURN .T.
-	ENDFUNC
+		_vfp.AutoYield = lAutoYield
+
+		This.UpdateLookForMRU(cPattern)
+		This.UpdateFileTypesMRU(cFileTypes)
+
+		Return .T.
+	Endfunc
 
 
 	* Search a file
-	FUNCTION FileSearch(cFilename, cPattern)
-		LOCAL cFileType
-		LOCAL nSelect
-		LOCAL cFileFind
-		LOCAL cFolderFind
-		LOCAL lSearch
-		LOCAL nSelect
-		LOCAL nFileTypeIndex
-		LOCAL ARRAY aFileList[1]
+	Function FileSearch(cFilename, cPattern)
+		Local cFileType
+		Local nSelect
+		Local cFileFind
+		Local cFolderFind
+		Local lSearch
+		Local nSelect
+		Local nFileTypeIndex
+		Local Array aFileList[1]
 
-		THIS.UpdateProgress(cFilename)
-		IF THIS.lCancel
-			RETURN
-		ENDIF
+		This.UpdateProgress(cFilename)
+		If This.lCancel
+			Return
+		Endif
 
-		IF VARTYPE(cPattern) <> 'C'
-			cPattern = THIS.Pattern
-		ENDIF
+		If Vartype(cPattern) <> 'C'
+			cPattern = This.Pattern
+		Endif
 
-		nSelect = SELECT()
+		nSelect = Select()
 
 		lSearch = .T.
 
 		* determine which search engine to use based upon the filetype
-		cFileType = UPPER(JUSTEXT(cFilename))
-		nFileTypeIndex = ASCAN(THIS.aFileTypes, cFileType, -1, -1, 1, 14)  && 14 = return row number, Exact On
-		IF nFileTypeIndex == 0
+		cFileType = Upper(Justext(cFilename))
+		nFileTypeIndex = Ascan(This.aFileTypes, cFileType, -1, -1, 1, 14)  && 14 = return row number, Exact On
+		If nFileTypeIndex == 0
 			nFileTypeIndex = 1  && this is the default search engine to use
-		ENDIF
+		Endif
 
-		WITH THIS.aFileTypes[nFileTypeIndex, FILETYPE_ENGINE]
+		With This.aFileTypes[nFileTypeIndex, FILETYPE_ENGINE]
 			.Filename       = cFilename
 			* .FileTimeStamp  = THIS.FileTimeStamp
-			
-	
-			* don't try to check the timestamp on a Table (DBF) 
+
+
+			* don't try to check the timestamp on a Table (DBF)
 			* because it isn't always updated when we modify
-			* certain things (such as values that are really stored in the 
+			* certain things (such as values that are really stored in the
 			* database container)
-			IF THIS.lRefreshMode AND !.NoRefresh
+			If This.lRefreshMode And !.Norefresh
 				* if we're refreshing results, then first see if
 				* we've already searched this file and the timestamp
 				* hasn't changed at all
 
-				cFileFind   = PADR(JUSTFNAME(cFilename), 100)
-				cFolderFind = PADR(JUSTPATH(cFilename), 240)
+				cFileFind   = Padr(Justfname(cFilename), 100)
+				cFolderFind = Padr(Justpath(cFilename), 240)
 
-				SELECT FoxRefCursor
-				LOCATE FOR SetID == THIS.cSetID AND (RefType == REFTYPE_RESULT OR RefType == REFTYPE_DEFINITION OR RefType == REFTYPE_NOMATCH) AND FileName == cFileFind AND Folder == cFolderFind
-				IF FOUND()
-					IF FoxRefCursor.TimeStamp == .FileTimeStamp
-						UPDATE FoxRefCursor SET Inactive = .F. WHERE SetID == THIS.cSetID AND (RefType == REFTYPE_RESULT OR RefType == REFTYPE_DEFINITION OR RefType == REFTYPE_NOMATCH) AND FileName == cFileFind AND Folder == cFolderFind
+				Select FoxRefCursor
+				Locate For SetID == This.cSetID And (RefType == REFTYPE_RESULT Or RefType == REFTYPE_DEFINITION Or RefType == REFTYPE_NOMATCH) And Filename == cFileFind And Folder == cFolderFind
+				If Found()
+					If FoxRefCursor.Timestamp == .FileTimeStamp
+						Update FoxRefCursor Set Inactive = .F. Where SetID == This.cSetID And (RefType == REFTYPE_RESULT Or RefType == REFTYPE_DEFINITION Or RefType == REFTYPE_NOMATCH) And Filename == cFileFind And Folder == cFolderFind
 						lSearch = .F.
-					ENDIF
-				ENDIF
-			ENDIF
+					Endif
+				Endif
+			Endif
 
 
-			IF lSearch
+			If lSearch
 				.SearchFor(cPattern)
-			ENDIF
-		ENDWITH
-		
-		
-		SELECT (nSelect)
+			Endif
+		Endwith
 
-	ENDFUNC
-	
 
-	
+		Select (nSelect)
+
+	Endfunc
+
+
+
 	* refresh results for all Sets in the Ref table or a single set
-	FUNCTION RefreshResults(cSetID)
-		LOCAL nSelect
-		LOCAL lInUse
-		LOCAL i
-		LOCAL nCnt
-		LOCAL ARRAY aRefList[1]
+	Function RefreshResults(cSetID)
+		Local nSelect
+		Local lInUse
+		Local i
+		Local nCnt
+		Local Array aRefList[1]
 
-		nSelect = SELECT()
+		nSelect = Select()
 
-		IF VARTYPE(cSetID) == 'C' AND !EMPTY(cSetID)
-			THIS.RefreshResultSet(cSetID)
-		ELSE
-			IF FILE(FORCEEXT(THIS.RefTable, "dbf"))
-				nSelect = SELECT()
+		If Vartype(cSetID) == 'C' And !Empty(cSetID)
+			This.RefreshResultSet(cSetID)
+		Else
+			If File(Forceext(This.RefTable, "dbf"))
+				nSelect = Select()
 
-				lInUse = USED("FoxRefCursor")
-				IF !lInUse
-					USE (THIS.RefTable) ALIAS FoxRefCursor IN 0 SHARED AGAIN
-				ENDIF
-				
-				SELECT SetID ;
-				 FROM FoxRefCursor ;
-				 WHERE RefType == REFTYPE_SEARCH AND !Inactive ;
-				 INTO ARRAY aRefList
-				nCnt = _TALLY
-*!*					IF !lInUse AND USED("FoxRefCursor")
-*!*						USE IN FoxRefCursor
-*!*					ENDIF
+				lInUse = Used("FoxRefCursor")
+				If !lInUse
+					Use (This.RefTable) Alias FoxRefCursor In 0 Shared Again
+				Endif
 
-				FOR i = 1 TO nCnt
-					THIS.RefreshResultSet(aRefList[i])
-				ENDFOR
+				Select SetID ;
+					FROM FoxRefCursor ;
+					WHERE RefType == REFTYPE_SEARCH And !Inactive ;
+					INTO Array aRefList
+				nCnt = _Tally
+				*!*					IF !lInUse AND USED("FoxRefCursor")
+				*!*						USE IN FoxRefCursor
+				*!*					ENDIF
+
+				For i = 1 To nCnt
+					This.RefreshResultSet(aRefList[i])
+				Endfor
 
 
-				SELECT (nSelect)
-			ENDIF
-			THIS.cSetID = ''
-		ENDIF
-	ENDFUNC
+				Select (nSelect)
+			Endif
+			This.cSetID = ''
+		Endif
+	Endfunc
 
 	* refresh an existing search set
-	FUNCTION RefreshResultSet(cSetID)
-		LOCAL lInUse
-		LOCAL nSelect
-		LOCAL lSuccess
-		LOCAL cScope
-		LOCAL cFolder
-		LOCAL cProject
-		LOCAL cPattern
-		LOCAL cSearchOptions
+	Function RefreshResultSet(cSetID)
+		Local lInUse
+		Local nSelect
+		Local lSuccess
+		Local cScope
+		Local cFolder
+		Local cProject
+		Local cPattern
+		Local cSearchOptions
 
 		lSuccess = .F.
-		IF FILE(FORCEEXT(THIS.RefTable, "dbf"))
-			nSelect = SELECT()
+		If File(Forceext(This.RefTable, "dbf"))
+			nSelect = Select()
 
-			lInUse = USED("FoxRefCursor")
-			IF !lInUse
-				USE (THIS.RefTable) ALIAS FoxRefCursor IN 0 SHARED AGAIN
-			ENDIF
-			
-			SELECT FoxRefCursor
-			LOCATE FOR RefType == REFTYPE_SEARCH AND SetID == cSetID 
-			lSuccess = FOUND()
-			IF lSuccess
-				cSearchOptions = LEFT(FoxRefCursor.RefCode, AT(';', FoxRefCursor.RefCode) - 1)
-				IF 'X'$cSearchOptions
-					THIS.Comments = COMMENTS_EXCLUDE
-				ENDIF
-				IF 'C'$cSearchOptions
-					THIS.Comments = COMMENTS_ONLY
-				ENDIF
-				THIS.MatchCase      = 'M' $ cSearchOptions
-				THIS.WholeWordsOnly = 'W' $ cSearchOptions
-				THIS.SubFolders     = 'S' $ cSearchOptions
-				THIS.Wildcards      = 'Z' $ cSearchOptions
-				
-				THIS.OverwritePrior = .F.
+			lInUse = Used("FoxRefCursor")
+			If !lInUse
+				Use (This.RefTable) Alias FoxRefCursor In 0 Shared Again
+			Endif
 
-				THIS.FileTypes = ALLTRIM(SUBSTR(FoxRefCursor.RefCode, AT(';', FoxRefCursor.RefCode) + 1))
-				cFolder  = RTRIM(FoxRefCursor.Folder)
+			Select FoxRefCursor
+			Locate For RefType == REFTYPE_SEARCH And SetID == cSetID
+			lSuccess = Found()
+			If lSuccess
+				cSearchOptions = Left(FoxRefCursor.RefCode, At(';', FoxRefCursor.RefCode) - 1)
+				If 'X'$cSearchOptions
+					This.Comments = COMMENTS_EXCLUDE
+				Endif
+				If 'C'$cSearchOptions
+					This.Comments = COMMENTS_ONLY
+				Endif
+				This.MatchCase      = 'M' $ cSearchOptions
+				This.WholeWordsOnly = 'W' $ cSearchOptions
+				This.SubFolders     = 'S' $ cSearchOptions
+				This.WildCards      = 'Z' $ cSearchOptions
+
+				This.OverwritePrior = .F.
+
+				This.FileTypes = Alltrim(Substr(FoxRefCursor.RefCode, At(';', FoxRefCursor.RefCode) + 1))
+				cFolder  = Rtrim(FoxRefCursor.Folder)
 				cProject = ''
 
-				IF UPPER(JUSTEXT(cFolder)) == "PJX"
+				If Upper(Justext(cFolder)) == "PJX"
 					cScope = SCOPE_PROJECT
 					cProject = cFolder
-				ELSE
+				Else
 					cScope = SCOPE_FOLDER
-				ENDIF
-				
-				IF PATTERN_EOL $ FoxRefCursor.Symbol
-					cPattern = LEFT(FoxRefCursor.Symbol, AT(PATTERN_EOL, FoxRefCursor.Symbol) - 1)
-				ELSE
-					cPattern = RTRIM(FoxRefCursor.Symbol)
-				ENDIF
-			ENDIF
+				Endif
 
-			IF !lInUse AND USED("FoxRefCursor")
-				USE IN FoxRefCursor
-			ENDIF
+				If PATTERN_EOL $ FoxRefCursor.Symbol
+					cPattern = Left(FoxRefCursor.Symbol, At(PATTERN_EOL, FoxRefCursor.Symbol) - 1)
+				Else
+					cPattern = Rtrim(FoxRefCursor.Symbol)
+				Endif
+			Endif
+
+			If !lInUse And Used("FoxRefCursor")
+				Use In FoxRefCursor
+			Endif
 
 
-			IF lSuccess
-				DO CASE
-				CASE cScope == SCOPE_FOLDER
-					THIS.FolderSearch(cPattern, cFolder)
-				CASE cScope == SCOPE_PROJECT
-					THIS.ProjectSearch(cPattern, cProject)
-				OTHERWISE
-					lSuccess = .F.
-				ENDCASE
-			ENDIF
-			
-			SELECT (nSelect)
-		ENDIF
-		
-		RETURN lSuccess
-	ENDFUNC
+			If lSuccess
+				Do Case
+					Case cScope == SCOPE_FOLDER
+						This.FolderSearch(cPattern, cFolder)
+					Case cScope == SCOPE_PROJECT
+						This.ProjectSearch(cPattern, cProject)
+					Otherwise
+						lSuccess = .F.
+				Endcase
+			Endif
 
-	FUNCTION SetChecked(cUniqueID, lChecked)
-		IF PCOUNT() < 2
+			Select (nSelect)
+		Endif
+
+		Return lSuccess
+	Endfunc
+
+	Function SetChecked(cUniqueID, lChecked)
+		If Pcount() < 2
 			lChecked = .T.
-		ENDIF
-		IF USED("FoxRefCursor") AND SEEK(cUniqueID, "FoxRefCursor", "UniqueID")
-			REPLACE Checked WITH lChecked IN FoxRefCursor
-		ENDIF
-	ENDFUNC
+		Endif
+		If Used("FoxRefCursor") And Seek(cUniqueID, "FoxRefCursor", "UniqueID")
+			Replace Checked With lChecked In FoxRefCursor
+		Endif
+	Endfunc
 
 
 	* -- Show the Results form
-	FUNCTION ShowResults()
-		LOCAL i
+	Function ShowResults()
+		Local i
 
 		* first see if there is an open Results window for this
 		* project and display that if there is
-		FOR i = 1 TO _SCREEN.FormCount
-			IF PEMSTATUS(_SCREEN.Forms(i), "oFoxRef", 5) AND ;
-			   UPPER(_SCREEN.Forms(i).Name) == "FRMFOXREFRESULTS" AND ;
-			   VARTYPE(_SCREEN.Forms(i).oFoxRef) == 'O' AND UPPER(_SCREEN.Forms(i).oFoxRef.ProjectFile) == THIS.ProjectFile
+		For i = 1 To _Screen.FormCount
+			If Pemstatus(_Screen.Forms(i), "oFoxRef", 5) And ;
+					UPPER(_Screen.Forms(i).Name) == "FRMFOXREFRESULTS" And ;
+					VARTYPE(_Screen.Forms(i).oFoxRef) == 'O' And Upper(_Screen.Forms(i).oFoxRef.ProjectFile) == This.ProjectFile
 				* _SCREEN.Forms(i).RefreshResults(THIS.cSetID)
-				_SCREEN.Forms(i).SetRefTable(THIS.cSetID)
-				RETURN
-			ENDIF
-		ENDFOR
-		
-		DO FORM FoxRefResults WITH THIS
-	ENDFUNC
+				_Screen.Forms(i).SetRefTable(This.cSetID)
+				Return
+			Endif
+		Endfor
+
+		Do Form FoxRefResults With This
+	Endfunc
 
 	* goto a specific reference
-	FUNCTION GotoReference(cUniqueID)
-		LOCAL nSelect
-		LOCAL cFilename
-		LOCAL cFileType
-		LOCAL cClassName
-		LOCAL cProcName
+	Function GotoReference(cUniqueID)
+		Local nSelect
+		Local cFilename
+		Local cFileType
+		Local cClassName
+		Local cProcName
 
-		IF VARTYPE(cUniqueID) <> 'C' OR EMPTY(cUniqueID)
-			RETURN .F.
-		ENDIF
+		If Vartype(cUniqueID) <> 'C' Or Empty(cUniqueID)
+			Return .F.
+		Endif
 
-		IF USED("FoxRefCursor") AND SEEK(cUniqueID, "FoxRefCursor", "UniqueID")
-			nSelect = SELECT()
-		
-			cFilename  = ADDBS(RTRIM(FoxRefCursor.Folder)) + RTRIM(FoxRefCursor.FileName)
-			cClassName = RTRIM(FoxRefCursor.ClassName)
-			cProcName  = RTRIM(FoxRefCursor.ProcName)
-			cFileType  = UPPER(JUSTEXT(cFileName))
+		If Used("FoxRefCursor") And Seek(cUniqueID, "FoxRefCursor", "UniqueID")
+			nSelect = Select()
 
-			DO CASE
-			CASE cFileType == "SCX"
-				EDITSOURCE(cFileName, MAX(FoxRefCursor.ProcLineNo, 1), cClassName, cProcName)
+			cFilename  = Addbs(Rtrim(FoxRefCursor.Folder)) + Rtrim(FoxRefCursor.Filename)
+			cClassName = Rtrim(FoxRefCursor.ClassName)
+			cProcName  = Rtrim(FoxRefCursor.ProcName)
+			cFileType  = Upper(Justext(cFilename))
 
-			CASE cFileType == "VCX"
-				EDITSOURCE(cFileName, MAX(FoxRefCursor.ProcLineNo, 1), cClassName, cProcName)
+			Do Case
+				Case cFileType == "SCX"
+					Editsource(cFilename, Max(FoxRefCursor.ProcLineNo, 1), cClassName, cProcName)
 
-			CASE cFileType == "DBF"
-				* do a TRY/CATCH here
-				IF USED(JUSTSTEM(cFilename))
-					SELECT (JUSTSTEM(cFilename))
-				ELSE
-					SELECT 0
-					USE (cFilename) EXCLUSIVE
-				ENDIF
-				MODIFY STRUCTURE
+				Case cFileType == "VCX"
+					Editsource(cFilename, Max(FoxRefCursor.ProcLineNo, 1), cClassName, cProcName)
 
-			OTHERWISE
-				EDITSOURCE(cFileName, FoxRefCursor.LineNo)
-			ENDCASE
-			
-			SELECT (nSelect)
-		ENDIF
-	
-	ENDFUNC
+				Case cFileType == "DBF"
+					* do a TRY/CATCH here
+					If Used(Juststem(cFilename))
+						Select (Juststem(cFilename))
+					Else
+						Select 0
+						Use (cFilename) Exclusive
+					Endif
+					Modify Structure
+
+				Otherwise
+					Editsource(cFilename, FoxRefCursor.Lineno)
+			Endcase
+
+			Select (nSelect)
+		Endif
+
+	Endfunc
 
 
 	* -- goto the definition of a reference
-	FUNCTION GotoDefinition(cUniqueID)
-		LOCAL nSelect
-		LOCAL lSuccess
-		LOCAL cFilename
-		LOCAL cClassName
-		LOCAL cProcName
-		LOCAL cSymbol
-		LOCAL nCnt
+	Function GotoDefinition(cUniqueID)
+		Local nSelect
+		Local lSuccess
+		Local cFilename
+		Local cClassName
+		Local cProcName
+		Local cSymbol
+		Local nCnt
 
-		IF VARTYPE(cUniqueID) <> 'C' OR EMPTY(cUniqueID)
-			RETURN .F.
-		ENDIF
+		If Vartype(cUniqueID) <> 'C' Or Empty(cUniqueID)
+			Return .F.
+		Endif
 
 		lSuccess = .F.
-		IF USED("FoxRefCursor") AND SEEK(cUniqueID, "FoxRefCursor", "UniqueID")
-			nSelect = SELECT()
-		
-			cSymbol    = UPPER(FoxRefCursor.Symbol)
+		If Used("FoxRefCursor") And Seek(cUniqueID, "FoxRefCursor", "UniqueID")
+			nSelect = Select()
+
+			cSymbol    = Upper(FoxRefCursor.Symbol)
 			cFolder    = FoxRefCursor.Folder
-			cFilename  = FoxRefCursor.FileName
+			cFilename  = FoxRefCursor.Filename
 			cClassName = FoxRefCursor.ClassName
 			cProcName  = FoxRefCursor.ProcName
 
 			* now find all appropriate definitions
-			SELECT ;
-			  UniqueID, ;
-			  Symbol, ;
-			  DefType, ;
-			  Filename, ;
-			  Folder, ;
-			  ClassName, ;
-			  ProcName, ;
-			  RefCode, ;
-			  IIF(Filename == cFilename AND ClassName == cClassName AND ProcName == cProcName, 1, ;
-			      IIF(Filename == cFilename AND ClassName == cClassName, 2, ;
-			      IIF(Filename == cFilename, 3, ;
-			      4))) AS Context ;
-			 FROM (THIS.RefTable) ;
-			 WHERE ;
-			  UPPER(Symbol) == cSymbol AND ;
-			  RefType == REFTYPE_DEFINITION AND ;
-			  !Inactive ;
-			 ORDER BY Context ;
-			 INTO CURSOR DefinitionCursor
-			nCnt = _TALLY
+			Select ;
+				UniqueID, ;
+				Symbol, ;
+				DefType, ;
+				Filename, ;
+				Folder, ;
+				ClassName, ;
+				ProcName, ;
+				RefCode, ;
+				IIF(Filename == cFilename And ClassName == cClassName And ProcName == cProcName, 1, ;
+				IIF(Filename == cFilename And ClassName == cClassName, 2, ;
+				IIF(Filename == cFilename, 3, ;
+				4))) As Context ;
+				FROM (This.RefTable) ;
+				WHERE ;
+				UPPER(Symbol) == cSymbol And ;
+				RefType == REFTYPE_DEFINITION And ;
+				!Inactive ;
+				ORDER By Context ;
+				INTO Cursor DefinitionCursor
+			nCnt = _Tally
 
-			DO CASE
-			CASE nCnt == 0
-				* no matches found
-				MESSAGEBOX(NODEFINITION_LOC + CHR(10) + CHR(10) + RTRIM(FoxRefCursor.Symbol), MB_ICONEXCLAMATION, GOTODEFINITION_LOC)
-			CASE nCnt == 1
-				* only a single match, so go right to it
-				THIS.GotoReference(DefinitionCursor.UniqueID)
-			OTHERWISE
-				* more than one match found, so display a cursor of
-				* the available matches.
-				DO FORM FoxRefGotoDef WITH THIS, RTRIM(FoxRefCursor.Symbol)
-			ENDCASE
+			Do Case
+				Case nCnt == 0
+					* no matches found
+					Messagebox(NODEFINITION_LOC + Chr(10) + Chr(10) + Rtrim(FoxRefCursor.Symbol), MB_ICONEXCLAMATION, GOTODEFINITION_LOC)
+				Case nCnt == 1
+					* only a single match, so go right to it
+					This.GotoReference(DefinitionCursor.UniqueID)
+				Otherwise
+					* more than one match found, so display a cursor of
+					* the available matches.
+					Do Form FoxRefGotoDef With This, Rtrim(FoxRefCursor.Symbol)
+			Endcase
 
-			IF USED("DefinitionCursor")
-				USE IN DefinitionCursor
-			ENDIF
-			
-			SELECT (nSelect)
-		ENDIF
-	
-		RETURN lSuccess
-	ENDFUNC
+			If Used("DefinitionCursor")
+				Use In DefinitionCursor
+			Endif
+
+			Select (nSelect)
+		Endif
+
+		Return lSuccess
+	Endfunc
 
 	* Show a progress form while searching
-	FUNCTION UpdateProgress(cMsg)
-		IF THIS.ShowProgress
-			IF VARTYPE(THIS.oProgressForm) <> 'O'
-				THIS.lCancel = .F.
-				DO FORM FoxRefProgress NAME THIS.oProgressForm LINKED
-			ENDIF
-			IF THIS.oProgressForm.SetProgress(cMsg)  && TRUE is returned if Cancel button is pressed
-				IF MESSAGEBOX(SEARCH_CANCEL_LOC, MB_ICONQUESTION + MB_YESNO, APPNAME_LOC) == IDYES
-					THIS.lCancel = .T.
-				ELSE
-					THIS.oProgressForm.lCancel = .F.
-				ENDIF
-			ENDIF
-			DOEVENTS
-		ENDIF
-	ENDFUNC
+	Function UpdateProgress(cMsg)
+		If This.ShowProgress
+			If Vartype(This.oProgressForm) <> 'O'
+				This.lCancel = .F.
+				Do Form FoxRefProgress Name This.oProgressForm Linked
+			Endif
+			If This.oProgressForm.SetProgress(cMsg)  && TRUE is returned if Cancel button is pressed
+				If Messagebox(SEARCH_CANCEL_LOC, MB_ICONQUESTION + MB_YESNO, APPNAME_LOC) == IDYES
+					This.lCancel = .T.
+				Else
+					This.oProgressForm.lCancel = .F.
+				Endif
+			Endif
+			DoEvents
+		Endif
+	Endfunc
 
-	FUNCTION CloseProgress()
-		IF VARTYPE(THIS.oProgressForm) == 'O'
-			THIS.oProgressForm.Release()
-		ENDIF
-		THIS.lCancel = .F.
-	ENDFUNC
+	Function CloseProgress()
+		If Vartype(This.oProgressForm) == 'O'
+			This.oProgressForm.Release()
+		Endif
+		This.lCancel = .F.
+	Endfunc
 
 
 	* Export reference table
-	FUNCTION ExportReferences(cExportType, cFilename, lSelectedOnly)
-		LOCAL nSelect
-		LOCAL cFor
+	Function ExportReferences(cExportType, cFilename, lSelectedOnly)
+		Local nSelect
+		Local cFor
 
-		nSelect = SELECT()
-		SELECT 0		
+		nSelect = Select()
+		Select 0
 
-		IF VARTYPE(cExportType) <> 'C' OR EMPTY(cExportType)
+		If Vartype(cExportType) <> 'C' Or Empty(cExportType)
 			cExportType = EXPORTTYPE_DBF
-		ENDIF
-		IF VARTYPE(lSelectedOnly) <> 'L'
+		Endif
+		If Vartype(lSelectedOnly) <> 'L'
 			lSelectedOnly = .F.
-		ENDIF
-		IF VARTYPE(cFilename) <> 'C'
-			RETURN .F.
-		ENDIF
-		cFilename = FULLPATH(cFilename)
-		IF !DIRECTORY(JUSTPATH(cFilename))
-			RETURN .F.
-		ENDIF
+		Endif
+		If Vartype(cFilename) <> 'C'
+			Return .F.
+		Endif
+		cFilename = Fullpath(cFilename)
+		If !Directory(Justpath(cFilename))
+			Return .F.
+		Endif
 
 
-		
+
 		cFor = "RefType == [" + REFTYPE_RESULT + "] AND !Inactive"
-		IF lSelectedOnly
+		If lSelectedOnly
 			cFor = cFor + " AND Checked"
-		ENDIF
+		Endif
 
-		
-		DO CASE
-		CASE cExportType == EXPORTTYPE_DBF
-			USE (THIS.RefTable) ALIAS ExportCursor IN 0 SHARED AGAIN
-			SELECT ExportCursor
 
-			COPY TO (cFilename) ;
-			 FIELDS ;
-			  Symbol, ;
-			  Folder, ;
-			  Filename, ;
-			  ClassName, ;
-			  ProcName, ;
-			  ProcLineNo, ;
-			  LineNo, ;
-			  ColPos, ;
-			  MatchLen, ;
-			  RefCode, ;
-			  TimeStamp ;
-			 FOR &cFor
+		Do Case
+			Case cExportType == EXPORTTYPE_DBF
+				Use (This.RefTable) Alias ExportCursor In 0 Shared Again
+				Select ExportCursor
 
-		CASE cExportType == EXPORTTYPE_TXT
-			USE (THIS.RefTable) ALIAS ExportCursor IN 0 SHARED AGAIN
-			SELECT ExportCursor
+				Copy To (cFilename) ;
+					FIELDS ;
+					Symbol, ;
+					Folder, ;
+					Filename, ;
+					ClassName, ;
+					ProcName, ;
+					ProcLineNo, ;
+					LineNo, ;
+					ColPos, ;
+					MatchLen, ;
+					RefCode, ;
+					TimeStamp ;
+					FOR &cFor
 
-			COPY TO (cFilename) ;
-			 FIELDS ;
-			  Symbol, ;
-			  Folder, ;
-			  Filename, ;
-			  ClassName, ;
-			  ProcName, ;
-			  ProcLineNo, ;
-			  LineNo, ;
-			  ColPos, ;
-			  MatchLen, ;
-			  RefCode, ;
-			  TimeStamp ;
-			 FOR &cFor ;
-			 DELIMITED
-			
-		CASE cExportType == EXPORTTYPE_XML
-			IF lSelectedOnly
-				SELECT ;
-				  Symbol, ;
-				  Folder, ;
-				  Filename, ;
-				  ClassName, ;
-				  ProcName, ;
-				  ProcLineNo, ;
-				  LineNo, ;
-				  ColPos, ;
-				  MatchLen, ;
-				  RefCode, ;
-				  TimeStamp ;
-				 FROM (THIS.RefTable) ;
-				 WHERE ;
-				  RefType == REFTYPE_RESULT AND ;
-				  Checked AND ;
-				  !Inactive ;
-				 INTO CURSOR ExportCursor
-			ELSE		
-				SELECT ;
-				  Symbol, ;
-				  Folder, ;
-				  Filename, ;
-				  ClassName, ;
-				  ProcName, ;
-				  ProcLineNo, ;
-				  LineNo, ;
-				  ColPos, ;
-				  MatchLen, ;
-				  RefCode, ;
-				  TimeStamp ;
-				 FROM (THIS.RefTable) ;
-				 WHERE ;
-				  RefType == REFTYPE_RESULT AND ;
-				  !Inactive ;
-				 INTO CURSOR ExportCursor
-			ENDIF			 
-			
-			IF EMPTY(JUSTEXT(cFilename))
-				cFilename = FORCEEXT(cFilename, "xml")
-			ENDIF
+			Case cExportType == EXPORTTYPE_TXT
+				Use (This.RefTable) Alias ExportCursor In 0 Shared Again
+				Select ExportCursor
 
-			CURSORTOXML("ExportCursor", cFilename, 1, 514, 0, '1')
-		ENDCASE
-		
-		IF USED("ExportCursor")
-			USE IN ExportCursor
-		ENDIF
-		
-		SELECT (nSelect)
-		
-		RETURN .T.
-	ENDFUNC
+				Copy To (cFilename) ;
+					FIELDS ;
+					Symbol, ;
+					Folder, ;
+					Filename, ;
+					ClassName, ;
+					ProcName, ;
+					ProcLineNo, ;
+					LineNo, ;
+					ColPos, ;
+					MatchLen, ;
+					RefCode, ;
+					TimeStamp ;
+					FOR &cFor ;
+					DELIMITED
+
+			Case cExportType == EXPORTTYPE_XML
+				If lSelectedOnly
+					Select ;
+						Symbol, ;
+						Folder, ;
+						Filename, ;
+						ClassName, ;
+						ProcName, ;
+						ProcLineNo, ;
+						LineNo, ;
+						ColPos, ;
+						MatchLen, ;
+						RefCode, ;
+						TimeStamp ;
+						FROM (This.RefTable) ;
+						WHERE ;
+						RefType == REFTYPE_RESULT And ;
+						Checked And ;
+						!Inactive ;
+						INTO Cursor ExportCursor
+				Else
+					Select ;
+						Symbol, ;
+						Folder, ;
+						Filename, ;
+						ClassName, ;
+						ProcName, ;
+						ProcLineNo, ;
+						LineNo, ;
+						ColPos, ;
+						MatchLen, ;
+						RefCode, ;
+						TimeStamp ;
+						FROM (This.RefTable) ;
+						WHERE ;
+						RefType == REFTYPE_RESULT And ;
+						!Inactive ;
+						INTO Cursor ExportCursor
+				Endif
+
+				If Empty(Justext(cFilename))
+					cFilename = Forceext(cFilename, "xml")
+				Endif
+
+				Cursortoxml("ExportCursor", cFilename, 1, 514, 0, '1')
+		Endcase
+
+		If Used("ExportCursor")
+			Use In ExportCursor
+		Endif
+
+		Select (nSelect)
+
+		Return .T.
+	Endfunc
 
 
 	* Print a report of found references
-	FUNCTION PrintReferences(lPreview, cSetID, lSelectedOnly)
-		LOCAL nSelect
-		LOCAL cWhere
-		LOCAL lSuccess
-		LOCAL cRptFile
+	Function PrintReferences(lPreview, cSetID, lSelectedOnly)
+		Local nSelect
+		Local cWhere
+		Local lSuccess
+		Local cRptFile
 
-		nSelect = SELECT()
-		SELECT 0
-		
+		nSelect = Select()
+		Select 0
+
 		lSuccess = .F.
 
-		IF VARTYPE(lPreview) <> 'L'
+		If Vartype(lPreview) <> 'L'
 			lPreview = .F.
-		ENDIF
-		IF VARTYPE(lSelectedOnly) <> 'L'
+		Endif
+		If Vartype(lSelectedOnly) <> 'L'
 			lSelectedOnly = .F.
-		ENDIF
-		IF VARTYPE(cSetID) <> 'C'
+		Endif
+		If Vartype(cSetID) <> 'C'
 			cSetID = ''
-		ENDIF
+		Endif
 
-		cRptFile = THIS.ReportFile
-		IF EMPTY(JUSTEXT(cRptFile))
-			cRptFile = FORCEEXT(cRptFile, ".frx")
-		ENDIF
+		cRptFile = This.ReportFile
+		If Empty(Justext(cRptFile))
+			cRptFile = Forceext(cRptFile, ".frx")
+		Endif
 
-		IF FILE(cRptFile)
+		If File(cRptFile)
 			cWhere = "RefType == [" + REFTYPE_RESULT + "] AND !Inactive"
-			IF !EMPTY(cSetID)
+			If !Empty(cSetID)
 				cWhere = cWhere + " AND SetID == [" + cSetID + "]"
-			ENDIF
-			IF lSelectedOnly
+			Endif
+			If lSelectedOnly
 				cWhere = cWhere + " AND Checked"
-			ENDIF
+			Endif
 
-			SELECT ;
-			  SetID, ;
-			  Symbol, ;
-			  Folder, ;
-			  Filename, ;
-			  ClassName, ;
-			  ProcName, ;
-			  ProcLineNo, ;
-			  LineNo, ;
-			  ColPos, ;
-			  MatchLen, ;
-			  RefCode, ;
-			  TimeStamp ;
-			 FROM (THIS.RefTable) ;
-			 WHERE &cWhere ;
-			 INTO CURSOR RptCursor
+			Select ;
+				SetID, ;
+				Symbol, ;
+				Folder, ;
+				Filename, ;
+				ClassName, ;
+				ProcName, ;
+				ProcLineNo, ;
+				LineNo, ;
+				ColPos, ;
+				MatchLen, ;
+				RefCode, ;
+				TimeStamp ;
+				FROM (This.RefTable) ;
+				WHERE &cWhere ;
+				INTO Cursor RptCursor
 
-			IF _TALLY > 0
-				IF lPreview
-					REPORT FORM (cRptFile) PREVIEW
-				ELSE
-					REPORT FORM (cRptFile) NOCONSOLE TO PRINTER
-				ENDIF
-			
+			If _Tally > 0
+				If lPreview
+					Report Form (cRptFile) Preview
+				Else
+					Report Form (cRptFile) Noconsole To Printer
+				Endif
+
 				lSuccess = .T.
-			ENDIF
+			Endif
 
-			IF USED("RptCursor")
-				USE IN RptCursor
-			ENDIF
-		ENDIF
+			If Used("RptCursor")
+				Use In RptCursor
+			Endif
+		Endif
 
-		SELECT (nSelect)
-		
-		RETURN lSuccess
-	ENDFUNC
-	
+		Select (nSelect)
+
+		Return lSuccess
+	Endfunc
+
 	* retrieve a preference from the FoxPro Resource file
-	FUNCTION RestorePrefs()
-		LOCAL nSelect
-		LOCAL lSuccess
-		LOCAL nMemoWidth
+	Function RestorePrefs()
+		Local nSelect
+		Local lSuccess
+		Local nMemoWidth
 
-		LOCAL ARRAY FOXREF_LOOKFOR_MRU[10]
-		LOCAL ARRAY FOXREF_REPLACE_MRU[10]
-		LOCAL ARRAY FOXREF_FOLDER_MRU[10]
-		LOCAL ARRAY FOXREF_FILETYPES_MRU[10]
+		Local Array FOXREF_LOOKFOR_MRU[10]
+		Local Array FOXREF_REPLACE_MRU[10]
+		Local Array FOXREF_FOLDER_MRU[10]
+		Local Array FOXREF_FILETYPES_MRU[10]
 
-		LOCAL FOXREF_COMMENTS
-		LOCAL FOXREF_MATCHCASE
-		LOCAL FOXREF_WHOLEWORDSONLY
-		LOCAL FOXREF_SUBFOLDERS
-		LOCAL FOXREF_OVERWRITE
+		Local FOXREF_COMMENTS
+		Local FOXREF_MATCHCASE
+		Local FOXREF_WHOLEWORDSONLY
+		Local FOXREF_SUBFOLDERS
+		Local FOXREF_OVERWRITE
 
-		nSelect = SELECT()
-		
+		nSelect = Select()
+
 		lSuccess = .F.
-		
-		IF FILE(SYS(2005))    && resource file not found.
-			USE (SYS(2005)) IN 0 SHARED AGAIN ALIAS FoxResource
-			IF USED("FoxResource")
-				nMemoWidth = SET('MEMOWIDTH')
-				SET MEMOWIDTH TO 255
 
-				SELECT FoxResource
-				LOCATE FOR UPPER(ALLTRIM(type)) == "PREFW" ;
-		   			AND UPPER(ALLTRIM(id)) == RESOURCE_ID ;
-		   			AND !DELETED()
+		If File(RESOURCE_FILE)    && resource file not found.
+			Use (RESOURCE_FILE) In 0 Shared Again Alias FoxResource
+			If Used("FoxResource")
+				nMemoWidth = Set('MEMOWIDTH')
+				Set Memowidth To 255
 
-				IF FOUND() AND !EMPTY(Data) AND ckval == VAL(SYS(2007, Data)) AND EMPTY(name)
-					RESTORE FROM MEMO Data ADDITIVE
+				Select FoxResource
+				Locate For Upper(Alltrim(Type)) == "PREFW" ;
+					AND Upper(Alltrim(Id)) == RESOURCE_ID ;
+					AND !Deleted()
 
-					IF TYPE("FOXREF_LOOKFOR_MRU") == 'C'
-						=ACOPY(FOXREF_LOOKFOR_MRU, THIS.aLookForMRU)
-					ENDIF
-					IF TYPE("FOXREF_REPLACE_MRU") == 'C'
-						=ACOPY(FOXREF_REPLACE_MRU, THIS.aReplaceMRU)
-					ENDIF
-					IF TYPE("FOXREF_FOLDER_MRU") == 'C'
-						=ACOPY(FOXREF_FOLDER_MRU, THIS.aFolderMRU)
-					ENDIF
-					IF TYPE("FOXREF_FILETYPES_MRU") == 'C'
-						=ACOPY(FOXREF_FILETYPES_MRU, THIS.aFileTypesMRU)
-					ENDIF
-					
-					IF TYPE("FOXREF_COMMENTS") == 'N'
-						THIS.Comments = FOXREF_COMMENTS
-					ENDIF
-					
-					IF TYPE("FOXREF_MATCHCASE") == 'L'
-						THIS.MatchCase = FOXREF_MATCHCASE
-					ENDIF
-					IF TYPE("FOXREF_WHOLEWORDSONLY") == 'L'
-						THIS.WholeWordsOnly = FOXREF_WHOLEWORDSONLY
-					ENDIF
-					IF TYPE("FOXREF_SUBFOLDERS") == 'L'
-						THIS.SubFolders = FOXREF_SUBFOLDERS
-					ENDIF
-					IF TYPE("FOXREF_OVERWRITE") == 'L'
-						THIS.OverwritePrior = FOXREF_OVERWRITE
-					ENDIF
+				If Found() And !Empty(Data) And ckval == Val(Sys(2007, Data)) And Empty(Name)
+					Restore From Memo Data Additive
+
+					If Type("FOXREF_LOOKFOR_MRU") == 'C'
+						=Acopy(FOXREF_LOOKFOR_MRU, This.aLookForMRU)
+					Endif
+					If Type("FOXREF_REPLACE_MRU") == 'C'
+						=Acopy(FOXREF_REPLACE_MRU, This.aReplaceMRU)
+					Endif
+					If Type("FOXREF_FOLDER_MRU") == 'C'
+						=Acopy(FOXREF_FOLDER_MRU, This.aFolderMRU)
+					Endif
+					If Type("FOXREF_FILETYPES_MRU") == 'C'
+						=Acopy(FOXREF_FILETYPES_MRU, This.aFileTypesMRU)
+					Endif
+
+					If Type("FOXREF_COMMENTS") == 'N'
+						This.Comments = FOXREF_COMMENTS
+					Endif
+
+					If Type("FOXREF_MATCHCASE") == 'L'
+						This.MatchCase = FOXREF_MATCHCASE
+					Endif
+					If Type("FOXREF_WHOLEWORDSONLY") == 'L'
+						This.WholeWordsOnly = FOXREF_WHOLEWORDSONLY
+					Endif
+					If Type("FOXREF_SUBFOLDERS") == 'L'
+						This.SubFolders = FOXREF_SUBFOLDERS
+					Endif
+					If Type("FOXREF_OVERWRITE") == 'L'
+						This.OverwritePrior = FOXREF_OVERWRITE
+					Endif
 
 					lSuccess = .T.
-				ENDIF
-				
+				Endif
+
 				* if no preferences or filetypes are empty,
 				* then set a default
-				IF EMPTY(THIS.aFileTypesMRU[1])
-					THIS.aFileTypesMRU[1] = FILETYPES_DEFAULT
-				ENDIF
+				If Empty(This.aFileTypesMRU[1])
+					This.aFileTypesMRU[1] = FILETYPES_DEFAULT
+				Endif
 
-				SET MEMOWIDTH TO (nMemoWidth)
+				Set Memowidth To (nMemoWidth)
 
-				USE IN FoxResource
-			ENDIF
-		ENDIF
+				Use In FoxResource
+			Endif
+		Endif
 
-		SELECT (nSelect)
-		
-		RETURN lSuccess
-	
-	ENDFUNC
-	
+		Select (nSelect)
+
+		Return lSuccess
+
+	Endfunc
+
 	* retrieve a preference from the FoxPro Resource file
-	FUNCTION SavePrefs()
-		LOCAL nSelect
-		LOCAL lSuccess
-		LOCAL nMemoWidth
-		LOCAL nCnt
-		LOCAL cData
+	Function SavePrefs()
+		Local nSelect
+		Local lSuccess
+		Local nMemoWidth
+		Local nCnt
+		Local cData
 
-		LOCAL ARRAY aFileList[1]
-		LOCAL ARRAY FOXREF_LOOKFOR_MRU[10]
-		LOCAL ARRAY FOXREF_FOLDER_MRU[10]
-		LOCAL ARRAY FOXREF_FILETYPES_MRU[10]
+		Local Array aFileList[1]
+		Local Array FOXREF_LOOKFOR_MRU[10]
+		Local Array FOXREF_FOLDER_MRU[10]
+		Local Array FOXREF_FILETYPES_MRU[10]
 
-		LOCAL FOXREF_COMMENTS
-		LOCAL FOXREF_MATCHCASE
-		LOCAL FOXREF_WHOLEWORDSONLY
-		LOCAL FOXREF_SUBFOLDERS
-		LOCAL FOXREF_OVERWRITE
+		Local FOXREF_COMMENTS
+		Local FOXREF_MATCHCASE
+		Local FOXREF_WHOLEWORDSONLY
+		Local FOXREF_SUBFOLDERS
+		Local FOXREF_OVERWRITE
 
-		=ACOPY(THIS.aLookForMRU, FOXREF_LOOKFOR_MRU)
-		=ACOPY(THIS.aReplaceMRU, FOXREF_REPLACE_MRU)
-		=ACOPY(THIS.aFolderMRU, FOXREF_FOLDER_MRU)
-		=ACOPY(THIS.aFileTypesMRU, FOXREF_FILETYPES_MRU)
+		=Acopy(This.aLookForMRU, FOXREF_LOOKFOR_MRU)
+		=Acopy(This.aReplaceMRU, FOXREF_REPLACE_MRU)
+		=Acopy(This.aFolderMRU, FOXREF_FOLDER_MRU)
+		=Acopy(This.aFileTypesMRU, FOXREF_FILETYPES_MRU)
 
-		FOXREF_COMMENTS       = THIS.Comments
-		FOXREF_MATCHCASE      = THIS.MatchCase
-		FOXREF_WHOLEWORDSONLY = THIS.WholeWordsOnly
-		FOXREF_SUBFOLDERS     = THIS.SubFolders
-		FOXREF_OVERWRITE      = THIS.OverwritePrior
-		FOXREF_FILETYPES      = THIS.FileTypes
+		FOXREF_COMMENTS       = This.Comments
+		FOXREF_MATCHCASE      = This.MatchCase
+		FOXREF_WHOLEWORDSONLY = This.WholeWordsOnly
+		FOXREF_SUBFOLDERS     = This.SubFolders
+		FOXREF_OVERWRITE      = This.OverwritePrior
+		FOXREF_FILETYPES      = This.FileTypes
 
-	
-		nSelect = SELECT()
-		
+
+		nSelect = Select()
+
 		lSuccess = .F.
 
-  		* make sure Resource file exists and is not read-only
-  		nCnt = ADIR(aFileList, SYS(2005))		
-		IF nCnt > 0 AND ATC('R', aFileList[1, 5]) == 0
-			USE (SYS(2005)) IN 0 SHARED AGAIN ALIAS FoxResource
-			IF USED("FoxResource") AND !ISREADONLY("FoxResource")
-				nMemoWidth = SET('MEMOWIDTH')
-				SET MEMOWIDTH TO 255
+		* make sure Resource file exists and is not read-only
+		nCnt = Adir(aFileList, RESOURCE_FILE)
+		If nCnt > 0 And Atc('R', aFileList[1, 5]) == 0
+			Use (RESOURCE_FILE) In 0 Shared Again Alias FoxResource
+			If Used("FoxResource") And !Isreadonly("FoxResource")
+				nMemoWidth = Set('MEMOWIDTH')
+				Set Memowidth To 255
 
-				SELECT FoxResource
-				LOCATE FOR UPPER(ALLTRIM(type)) == "PREFW" AND UPPER(ALLTRIM(id)) == RESOURCE_ID AND EMPTY(name)
-				IF !FOUND()
-					APPEND BLANK IN FoxResource
-					REPLACE ; 
-					  Type WITH "PREFW", ;
-					  ID WITH RESOURCE_ID, ;
-					  ReadOnly WITH .F. ;
-					 IN FoxResource
-				ENDIF
+				Select FoxResource
+				Locate For Upper(Alltrim(Type)) == "PREFW" And Upper(Alltrim(Id)) == RESOURCE_ID And Empty(Name)
+				If !Found()
+					Append Blank In FoxResource
+					Replace ;
+						Type With "PREFW", ;
+						ID With RESOURCE_ID, ;
+						ReadOnly With .F. ;
+						IN FoxResource
+				Endif
 
-				IF !FoxResource.ReadOnly
-					SAVE TO MEMO Data ALL LIKE FOXREF_*
+				If !FoxResource.ReadOnly
+					Save To Memo Data All Like FOXREF_*
 
-					REPLACE ;
-					  Updated WITH DATE(), ;
-					  ckval WITH VAL(SYS(2007, FoxResource.Data)) ;
-					 IN FoxResource
+					Replace ;
+						Updated With Date(), ;
+						ckval With Val(Sys(2007, FoxResource.Data)) ;
+						IN FoxResource
 
 					lSuccess = .T.
-				ENDIF
-				SET MEMOWIDTH TO (nMemoWidth)
-			
-				USE IN FoxResource
-			ENDIF
-		ENDIF
+				Endif
+				Set Memowidth To (nMemoWidth)
 
-		SELECT (nSelect)
-		
-		RETURN lSuccess
-	ENDFUNC
+				*** JRN 2010-04-02 : Pack
+				* Curiously, even if there are no changes, savings causes file explosion, so we pack afterwards
+				Try
+					Use (RESOURCE_FILE) Exclusive Alias FoxResource
+					Pack
+				Catch
 
-	FUNCTION SaveWindowPosition(nTop, nLeft, nHeight, nWidth)
-		LOCAL lInUse
-		
-		IF FILE(FORCEEXT(THIS.RefTable, "DBF"))
-			lInUse = USED(THIS.RefTable)
-			IF !lInUse
-				USE (THIS.RefTable) ALIAS FoxRefCursor IN 0 SHARED AGAIN
-			ENDIF
+				Finally
+					Use
 
-			GOTO TOP IN FoxRefCursor
-			IF TYPE("FoxRefCursor.RefType") == 'C' AND FoxRefCursor.RefType == REFTYPE_INIT
-				REPLACE RefCode WITH ;
-				  TRANSFORM(nTop) + ',' + TRANSFORM(nLeft) + ',' + TRANSFORM(nHeight) + ',' + TRANSFORM(nWidth) ;
-				 IN FoxRefCursor
-			ENDIF
-			
-			IF !lInUse AND USED("FoxRefCursor")
-				USE IN FoxRefCursor
-			ENDIF
-		ENDIF
-	ENDFUNC
+				Endtry
 
-	FUNCTION UpdateLookForMRU(cPattern)
-		LOCAL nRow
-		
-		nRow = ASCAN(THIS.aLookForMRU, cPattern, -1, -1, 1, 15)
-		IF nRow > 0
-			=ADEL(THIS.aLookForMRU, nRow)
-		ENDIF
-		=AINS(THIS.aLookForMRU, 1)
-		THIS.aLookForMRU[1] = cPattern
-	ENDFUNC
+			Endif
+		Endif
 
-	FUNCTION UpdateReplaceMRU(cReplaceText)
-		LOCAL nRow
-		
-		nRow = ASCAN(THIS.aReplaceMRU, cReplaceText, -1, -1, 1, 15)
-		IF nRow > 0
-			=ADEL(THIS.aReplaceMRU, nRow)
-		ENDIF
-		=AINS(THIS.aReplaceMRU, 1)
-		THIS.aReplaceMRU[1] = cReplaceText
-	ENDFUNC
+		Select (nSelect)
 
-	FUNCTION UpdateFolderMRU(cFolder)
-		LOCAL nRow
-		
-		nRow = ASCAN(THIS.aFolderMRU, cFolder, -1, -1, 1, 15)
-		IF nRow > 0
-			=ADEL(THIS.aFolderMRU, nRow)
-		ENDIF
-		=AINS(THIS.aFolderMRU, 1)
-		THIS.aFolderMRU[1] = cFolder
-	ENDFUNC
+		Return lSuccess
+	Endfunc
+
+	Function SaveWindowPosition(nTop, nLeft, nHeight, nWidth)
+		Local lInUse
+
+		If File(Forceext(This.RefTable, "DBF"))
+			lInUse = Used(This.RefTable)
+			If !lInUse
+				Use (This.RefTable) Alias FoxRefCursor In 0 Shared Again
+			Endif
+
+			Goto Top In FoxRefCursor
+			If Type("FoxRefCursor.RefType") == 'C' And FoxRefCursor.RefType == REFTYPE_INIT
+				Replace RefCode With ;
+					TRANSFORM(nTop) + ',' + Transform(nLeft) + ',' + Transform(nHeight) + ',' + Transform(nWidth) ;
+					IN FoxRefCursor
+			Endif
+
+			If !lInUse And Used("FoxRefCursor")
+				Use In FoxRefCursor
+			Endif
+		Endif
+	Endfunc
+
+	Function UpdateLookForMRU(cPattern)
+		Local nRow
+
+		nRow = Ascan(This.aLookForMRU, cPattern, -1, -1, 1, 15)
+		If nRow > 0
+			=Adel(This.aLookForMRU, nRow)
+		Endif
+		=Ains(This.aLookForMRU, 1)
+		This.aLookForMRU[1] = cPattern
+	Endfunc
+
+	Function UpdateReplaceMRU(cReplaceText)
+		Local nRow
+
+		nRow = Ascan(This.aReplaceMRU, cReplaceText, -1, -1, 1, 15)
+		If nRow > 0
+			=Adel(This.aReplaceMRU, nRow)
+		Endif
+		=Ains(This.aReplaceMRU, 1)
+		This.aReplaceMRU[1] = cReplaceText
+	Endfunc
+
+	Function UpdateFolderMRU(cFolder)
+		Local nRow
+
+		nRow = Ascan(This.aFolderMRU, cFolder, -1, -1, 1, 15)
+		If nRow > 0
+			=Adel(This.aFolderMRU, nRow)
+		Endif
+		=Ains(This.aFolderMRU, 1)
+		This.aFolderMRU[1] = cFolder
+	Endfunc
 
 
-	FUNCTION UpdateFileTypesMRU(cFileTypes)
-		LOCAL nRow
-		
-		nRow = ASCAN(THIS.aFileTypesMRU, cFileTypes, -1, -1, 1, 15)
-		IF nRow > 0
-			=ADEL(THIS.aFileTypesMRU, nRow)
-		ENDIF
-		=AINS(THIS.aFileTypesMRU, 1)
-		THIS.aFileTypesMRU[1] = cFileTypes
-	ENDFUNC
+	Function UpdateFileTypesMRU(cFileTypes)
+		Local nRow
+
+		nRow = Ascan(This.aFileTypesMRU, cFileTypes, -1, -1, 1, 15)
+		If nRow > 0
+			=Adel(This.aFileTypesMRU, nRow)
+		Endif
+		=Ains(This.aFileTypesMRU, 1)
+		This.aFileTypesMRU[1] = cFileTypes
+	Endfunc
 
 	* stolen from Class Browser
-	FUNCTION WildCardMatch(tcMatchExpList, tcExpressionSearched, tlMatchAsIs)
-		LOCAL lcMatchExpList,lcExpressionSearched,llMatchAsIs,lcMatchExpList2
-		LOCAL lnMatchLen,lnExpressionLen,lnMatchCount,lnCount,lnCount2,lnSpaceCount
-		LOCAL lcMatchExp,lcMatchType,lnMatchType,lnAtPos,lnAtPos2
-		LOCAL llMatch,llMatch2
+	Function WildCardMatch(tcMatchExpList, tcExpressionSearched, tlMatchAsIs)
+		Local lcMatchExpList,lcExpressionSearched,llMatchAsIs,lcMatchExpList2
+		Local lnMatchLen,lnExpressionLen,lnMatchCount,lnCount,lnCount2,lnSpaceCount
+		Local lcMatchExp,lcMatchType,lnMatchType,lnAtPos,lnAtPos2
+		Local llMatch,llMatch2
 
-		IF ALLTRIM(tcMatchExpList) == "*.*"
-			RETURN .T.
-		ENDIF
+		If Alltrim(tcMatchExpList) == "*.*"
+			Return .T.
+		Endif
 
-		IF EMPTY(tcExpressionSearched)
-			IF EMPTY(tcMatchExpList) OR ALLTRIM(tcMatchExpList) == "*"
-				RETURN .T.
-			ENDIF
-			RETURN .F.
-		ENDIF
-		lcMatchExpList=LOWER(ALLTRIM(STRTRAN(tcMatchExpList,TAB," ")))
-		lcExpressionSearched=LOWER(ALLTRIM(STRTRAN(tcExpressionSearched,TAB," ")))
-		lnExpressionLen=LEN(lcExpressionSearched)
-		IF lcExpressionSearched==lcMatchExpList
-			RETURN .T.
-		ENDIF
+		If Empty(tcExpressionSearched)
+			If Empty(tcMatchExpList) Or Alltrim(tcMatchExpList) == "*"
+				Return .T.
+			Endif
+			Return .F.
+		Endif
+		lcMatchExpList=Lower(Alltrim(Strtran(tcMatchExpList,Tab," ")))
+		lcExpressionSearched=Lower(Alltrim(Strtran(tcExpressionSearched,Tab," ")))
+		lnExpressionLen=Len(lcExpressionSearched)
+		If lcExpressionSearched==lcMatchExpList
+			Return .T.
+		Endif
 		llMatchAsIs=tlMatchAsIs
-		IF LEFT(lcMatchExpList,1)==["] AND RIGHT(lcMatchExpList,1)==["]
+		If Left(lcMatchExpList,1)==["] And Right(lcMatchExpList,1)==["]
 			llMatchAsIs=.T.
-			lcMatchExpList=ALLTRIM(SUBSTR(lcMatchExpList,2,LEN(lcMatchExpList)-2))
-		ENDIF
-		IF NOT llMatchAsIs AND " "$lcMatchExpList
+			lcMatchExpList=Alltrim(Substr(lcMatchExpList,2,Len(lcMatchExpList)-2))
+		Endif
+		If Not llMatchAsIs And " "$lcMatchExpList
 			llMatch=.F.
-			lnSpaceCount=OCCURS(" ",lcMatchExpList)
+			lnSpaceCount=Occurs(" ",lcMatchExpList)
 			lcMatchExpList2=lcMatchExpList
 			lnCount=0
-			DO WHILE .T.
-				lnAtPos=AT(" ",lcMatchExpList2)
-				IF lnAtPos=0
-					lcMatchExp=ALLTRIM(lcMatchExpList2)
+			Do While .T.
+				lnAtPos=At(" ",lcMatchExpList2)
+				If lnAtPos=0
+					lcMatchExp=Alltrim(lcMatchExpList2)
 					lcMatchExpList2=""
-				ELSE
-					lnAtPos2=AT(["],lcMatchExpList2)
-					IF lnAtPos2<lnAtPos
-						lnAtPos2=AT(["],lcMatchExpList2,2)
-						IF lnAtPos2>lnAtPos
+				Else
+					lnAtPos2=At(["],lcMatchExpList2)
+					If lnAtPos2<lnAtPos
+						lnAtPos2=At(["],lcMatchExpList2,2)
+						If lnAtPos2>lnAtPos
 							lnAtPos=lnAtPos2
-						ENDIF
-					ENDIF
-					lcMatchExp=ALLTRIM(LEFT(lcMatchExpList2,lnAtPos))
-					lcMatchExpList2=ALLTRIM(SUBSTR(lcMatchExpList2,lnAtPos+1))
-				ENDIF
-				IF EMPTY(lcMatchExp)
-					EXIT
-				ENDIF
-				lcMatchType=LEFT(lcMatchExp,1)
-				DO CASE
-					CASE lcMatchType=="+"
+						Endif
+					Endif
+					lcMatchExp=Alltrim(Left(lcMatchExpList2,lnAtPos))
+					lcMatchExpList2=Alltrim(Substr(lcMatchExpList2,lnAtPos+1))
+				Endif
+				If Empty(lcMatchExp)
+					Exit
+				Endif
+				lcMatchType=Left(lcMatchExp,1)
+				Do Case
+					Case lcMatchType=="+"
 						lnMatchType=1
-					CASE lcMatchType=="-"
+					Case lcMatchType=="-"
 						lnMatchType=-1
-					OTHERWISE
+					Otherwise
 						lnMatchType=0
-				ENDCASE
-				IF lnMatchType#0
-					lcMatchExp=ALLTRIM(SUBSTR(lcMatchExp,2))
-				ENDIF
-				llMatch2=THIS.WildCardMatch(lcMatchExp,lcExpressionSearched, .T.)
-				IF (lnMatchType=1 AND NOT llMatch2) OR (lnMatchType=-1 AND llMatch2)
-					RETURN .F.
-				ENDIF
-				llMatch=(llMatch OR llMatch2)
-				IF lnAtPos=0
-					EXIT
-				ENDIF
-			ENDDO
-			RETURN llMatch
-		ELSE
-			IF LEFT(lcMatchExpList,1)=="~"
-				RETURN (DIFFERENCE(ALLTRIM(SUBSTR(lcMatchExpList,2)),lcExpressionSearched)>=3)
-			ENDIF
-		ENDIF
-		lnMatchCount=OCCURS(",",lcMatchExpList)+1
-		IF lnMatchCount>1
-			lcMatchExpList=","+ALLTRIM(lcMatchExpList)+","
-		ENDIF
-		FOR lnCount = 1 TO lnMatchCount
-			IF lnMatchCount=1
-				lcMatchExp=LOWER(ALLTRIM(lcMatchExpList))
-				lnMatchLen=LEN(lcMatchExp)
-			ELSE
-				lnAtPos=AT(",",lcMatchExpList,lnCount)
-				lnMatchLen=AT(",",lcMatchExpList,lnCount+1)-lnAtPos-1
-				lcMatchExp=LOWER(ALLTRIM(SUBSTR(lcMatchExpList,lnAtPos+1,lnMatchLen)))
-			ENDIF
-			FOR lnCount2 = 1 TO OCCURS("?",lcMatchExp)
-				lnAtPos=AT("?",lcMatchExp)
-				IF lnAtPos>lnExpressionLen
-					IF (lnAtPos-1)=lnExpressionLen
+				Endcase
+				If lnMatchType#0
+					lcMatchExp=Alltrim(Substr(lcMatchExp,2))
+				Endif
+				llMatch2=This.WildCardMatch(lcMatchExp,lcExpressionSearched, .T.)
+				If (lnMatchType=1 And Not llMatch2) Or (lnMatchType=-1 And llMatch2)
+					Return .F.
+				Endif
+				llMatch=(llMatch Or llMatch2)
+				If lnAtPos=0
+					Exit
+				Endif
+			Enddo
+			Return llMatch
+		Else
+			If Left(lcMatchExpList,1)=="~"
+				Return (Difference(Alltrim(Substr(lcMatchExpList,2)),lcExpressionSearched)>=3)
+			Endif
+		Endif
+		lnMatchCount=Occurs(",",lcMatchExpList)+1
+		If lnMatchCount>1
+			lcMatchExpList=","+Alltrim(lcMatchExpList)+","
+		Endif
+		For lnCount = 1 To lnMatchCount
+			If lnMatchCount=1
+				lcMatchExp=Lower(Alltrim(lcMatchExpList))
+				lnMatchLen=Len(lcMatchExp)
+			Else
+				lnAtPos=At(",",lcMatchExpList,lnCount)
+				lnMatchLen=At(",",lcMatchExpList,lnCount+1)-lnAtPos-1
+				lcMatchExp=Lower(Alltrim(Substr(lcMatchExpList,lnAtPos+1,lnMatchLen)))
+			Endif
+			For lnCount2 = 1 To Occurs("?",lcMatchExp)
+				lnAtPos=At("?",lcMatchExp)
+				If lnAtPos>lnExpressionLen
+					If (lnAtPos-1)=lnExpressionLen
 						lcExpressionSearched=lcExpressionSearched+"?"
-					ENDIF
-					EXIT
-				ENDIF
-				lcMatchExp=STUFF(lcMatchExp,lnAtPos,1,SUBSTR(lcExpressionSearched,lnAtPos,1))
-			ENDFOR
-			IF EMPTY(lcMatchExp) OR lcExpressionSearched==lcMatchExp OR ;
-					lcMatchExp=="*" OR lcMatchExp=="?" OR lcMatchExp=="%%"
-				RETURN .T.
-			ENDIF
-			IF LEFT(lcMatchExp,1)=="*"
-				RETURN (SUBSTR(lcMatchExp,2)==RIGHT(lcExpressionSearched,LEN(lcMatchExp)-1))
-			ENDIF
-			IF LEFT(lcMatchExp,1)=="%" AND RIGHT(lcMatchExp,1)=="%" AND ;
+					Endif
+					Exit
+				Endif
+				lcMatchExp=Stuff(lcMatchExp,lnAtPos,1,Substr(lcExpressionSearched,lnAtPos,1))
+			Endfor
+			If Empty(lcMatchExp) Or lcExpressionSearched==lcMatchExp Or ;
+					lcMatchExp=="*" Or lcMatchExp=="?" Or lcMatchExp=="%%"
+				Return .T.
+			Endif
+			If Left(lcMatchExp,1)=="*"
+				Return (Substr(lcMatchExp,2)==Right(lcExpressionSearched,Len(lcMatchExp)-1))
+			Endif
+			If Left(lcMatchExp,1)=="%" And Right(lcMatchExp,1)=="%" And ;
 					SUBSTR(lcMatchExp,2,lnMatchLen-2)$lcExpressionSearched
-				RETURN .T.
-			ENDIF
-			lnAtPos=AT("*",lcMatchExp)
-			IF lnAtPos>0 AND (lnAtPos-1)<=lnExpressionLen AND ;
-					LEFT(lcExpressionSearched,lnAtPos-1)==LEFT(lcMatchExp,lnAtPos-1)
-				RETURN .T.
-			ENDIF
-		ENDFOR
-		RETURN .F.
-	ENDFUNC
+				Return .T.
+			Endif
+			lnAtPos=At("*",lcMatchExp)
+			If lnAtPos>0 And (lnAtPos-1)<=lnExpressionLen And ;
+					LEFT(lcExpressionSearched,lnAtPos-1)==Left(lcMatchExp,lnAtPos-1)
+				Return .T.
+			Endif
+		Endfor
+		Return .F.
+	Endfunc
 
-ENDDEFINE
+Enddefine

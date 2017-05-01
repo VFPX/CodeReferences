@@ -6,351 +6,369 @@
 #include "foxref.h"
 #include "foxpro.h"
 
-DEFINE CLASS RefSearchForm AS RefSearch OF FoxRefSearch.prg
+Define Class RefSearchForm As RefSearch Of FoxRefSearch.prg
 	Name = "RefSearchForm"
 
-	NoRefresh        = .F.
+	Norefresh        = .F.
 	BackupExtensions = "SCX,SCT"
 
-	FUNCTION OpenFile(lReadWrite)
-		LOCAL oError
+	Function OpenFile(lReadWrite)
+		Local oError
 
-		m.oError = .NULL.
+		m.oError = .Null.
 
-		IF USED(TABLEFIND_ALIAS)
-			USE IN (TABLEFIND_ALIAS)
-		ENDIF
-		
-		TRY
-			IF m.lReadWrite
-				USE (THIS.Filename) ALIAS TABLEFIND_ALIAS IN 0 SHARED AGAIN
-			ELSE
-				USE (THIS.Filename) ALIAS TABLEFIND_ALIAS IN 0 SHARED AGAIN NOUPDATE
-			ENDIF
+		If Used(TABLEFIND_ALIAS)
+			Use In (TABLEFIND_ALIAS)
+		Endif
 
-		CATCH TO oError
-		ENDTRY
+		Try
+			If m.lReadWrite
+				Use (This.Filename) Alias TABLEFIND_ALIAS In 0 Shared Again
+			Else
+				Use (This.Filename) Alias TABLEFIND_ALIAS In 0 Shared Again Noupdate
+			Endif
 
-		IF ISNULL(m.oError) AND USED(TABLEFIND_ALIAS)
-			TRY
-				IF ;
-				 TYPE(TABLEFIND_ALIAS + ".Methods") == 'M' AND ;
-				 TYPE(TABLEFIND_ALIAS + ".Platform") == 'C' AND ;
-				 TYPE(TABLEFIND_ALIAS + ".UniqueID") == 'C'
-					SELECT TABLEFIND_ALIAS
-				ELSE
-					USE IN (TABLEFIND_ALIAS)
-					THROW ERROR_NOTFORM_LOC
-				ENDIF
+		Catch To oError
+		Endtry
 
-			CATCH TO oError WHEN oError.ErrorNo == 2071
-			CATCH TO oError
-			ENDTRY
-		ENDIF
+		If Isnull(m.oError) And Used(TABLEFIND_ALIAS)
+			Try
+				If ;
+						TYPE(TABLEFIND_ALIAS + ".Methods") == 'M' And ;
+						TYPE(TABLEFIND_ALIAS + ".Platform") == 'C' And ;
+						TYPE(TABLEFIND_ALIAS + ".UniqueID") == 'C'
+					Select TABLEFIND_ALIAS
+				Else
+					Use In (TABLEFIND_ALIAS)
+					Throw ERROR_NOTFORM_LOC
+				Endif
 
-		RETURN m.oError
-	ENDFUNC
-	
-	FUNCTION CloseFile()
-		IF USED(TABLEFIND_ALIAS)
-			USE IN (TABLEFIND_ALIAS)
-		ENDIF
-		
-		RETURN .T.
-	ENDFUNC
+			Catch To oError When oError.ErrorNo == 2071
+			Catch To oError
+			Endtry
+		Endif
 
-	FUNCTION DoDefinitions()
-		LOCAL nSelect
-		LOCAL cObjName
-		LOCAL cClassName
-		LOCAL cRootClass
-	
-		nSelect = SELECT()
-		
-		cRootClass = .NULL.
+		Return m.oError
+	Endfunc
 
-		SELECT TABLEFIND_ALIAS
+	Function CloseFile()
+		If Used(TABLEFIND_ALIAS)
+			Use In (TABLEFIND_ALIAS)
+		Endif
 
-		SCAN ALL FOR PlatForm = "WINDOWS" AND !EMPTY(Methods)
-			IF Reserved1 == "Class"
+		Return .T.
+	Endfunc
+
+	Function DoDefinitions()
+		Local nSelect
+		Local cObjName
+		Local cClassName
+		Local cRootClass
+
+		nSelect = Select()
+
+		cRootClass = .Null.
+
+		Select TABLEFIND_ALIAS
+
+		Scan All For PlatForm = "WINDOWS" And !Empty(Methods)
+			If Reserved1 == "Class"
 				cRootClass = ObjName
-			ENDIF
+			Endif
 
-			IF EMPTY(Parent)
-				IF BaseClass == "dataenvironment"
+			If Empty(Parent)
+				If BaseClass == "dataenvironment"
 					cObjName = ObjName
-				ELSE
+				Else
 					cObjName = ''
-				ENDIF
+				Endif
 				cClassName = Class
-			ELSE
-				IF AT_C('.', Parent) == 0
+			Else
+				If At_c('.', Parent) == 0
 					cClassName = Parent
 					cObjName = ObjName
-				ELSE
-					cClassName = LEFTC(Parent, AT_C('.', Parent) - 1)
-					cObjName = SUBSTRC(Parent, AT_C('.', Parent) + 1) + '.' + ObjName
-				ENDIF
-			ENDIF
-			THIS.FindDefinitions(Methods, NVL(cRootClass, cClassName), cObjName, SEARCHTYPE_NORMAL)
-		ENDSCAN
+				Else
+					cClassName = Leftc(Parent, At_c('.', Parent) - 1)
+					cObjName = Substrc(Parent, At_c('.', Parent) + 1) + '.' + ObjName
+				Endif
+			Endif
+			This.FindDefinitions(Methods, Nvl(cRootClass, cClassName), cObjName, SEARCHTYPE_NORMAL)
+		Endscan
 
-		SELECT (nSelect)
-	ENDFUNC
+		Select (nSelect)
+	Endfunc
 
-	FUNCTION DoSearch()
-		LOCAL nSelect
-		LOCAL cObjName
-		LOCAL cClassName
-		LOCAL cRootClass
-		LOCAL lSuccess
+	Function DoSearch()
+		Local nSelect
+		Local cObjName
+		Local cClassName
+		Local cRootClass
+		Local lSuccess
 
-		nSelect = SELECT()
+		nSelect = Select()
 
-		cRootClass = .NULL.
+		cRootClass = .Null.
 
 		m.lSuccess = .T.
 
-		SELECT TABLEFIND_ALIAS
-		
-		IF RECCOUNT() > 0 AND !EMPTY(Reserved8)
+		Select TABLEFIND_ALIAS
+
+		If Reccount() > 0 And !Empty(Reserved8)
 			&& this is where global include file is stored for a form
-			THIS.AddFileToProcess( ;
-			  DEFTYPE_INCLUDEFILE, ;
-			  Reserved8, ;
-			  '', ;
-			  '', ;
-			  1, ;
-			  1, ;
-			  Reserved8 ;
-			 )
-			m.lSuccess = THIS.FindInText(Reserved8, FINDTYPE_TEXT, '', '', SEARCHTYPE_NORMAL, UniqueID, "RESERVED8")
-		ENDIF
-		
-		SCAN ALL FOR PlatForm = "WINDOWS"
-			IF Reserved1 == "Class"
+			This.AddFileToProcess( ;
+				DEFTYPE_INCLUDEFILE, ;
+				Reserved8, ;
+				'', ;
+				'', ;
+				1, ;
+				1, ;
+				Reserved8 ;
+				)
+			m.lSuccess = This.FindInText(Reserved8, FINDTYPE_TEXT, '', INCLUDENAME_LOC, SEARCHTYPE_NORMAL, UniqueID, "RESERVED8")
+		Endif
+
+		Scan All For PlatForm = "WINDOWS"
+			*** JRN 2010-03-20 : Save timestamp for this obect
+			This.ObjectTimeStamp = Timestamp
+			If Reserved1 == "Class"
 				cRootClass = ObjName
-				
-				IF !EMPTY(Reserved8) && this is where global include file is stored for a class
-					THIS.AddFileToProcess( ;
-					  DEFTYPE_INCLUDEFILE, ;
-					  Reserved8, ;
-					  NVL(cRootClass, cClassName), ;
-					  '', ;
-					  1, ;
-					  1, ;
-					  Reserved8 ;
-					 )
 
-					m.lSuccess = THIS.FindInText(Reserved8, FINDTYPE_TEXT, NVL(cRootClass, cClassName), cObjName, SEARCHTYPE_NORMAL, UniqueID, "RESERVED8")
-				ENDIF
-			ENDIF
+				If !Empty(Reserved8) && this is where global include file is stored for a class
+					This.AddFileToProcess( ;
+						DEFTYPE_INCLUDEFILE, ;
+						Reserved8, ;
+						NVL(cRootClass, cClassName), ;
+						'', ;
+						1, ;
+						1, ;
+						Reserved8 ;
+						)
+
+					m.lSuccess = This.FindInText(Reserved8, FINDTYPE_TEXT, Nvl(cRootClass, cClassName), INCLUDENAME_LOC, SEARCHTYPE_NORMAL, UniqueID, "RESERVED8")
+				Endif
+			Endif
 
 
-			IF EMPTY(Parent)
-				IF BaseClass == "dataenvironment"
+			If Empty(Parent)
+				If BaseClass == "dataenvironment"
 					cObjName = ObjName
-				ELSE
+				Else
 					cObjName = ''
-				ENDIF
+				Endif
 				cClassName = Class
-			ELSE
-				IF AT_C('.', Parent) == 0
+			Else
+				If At_c('.', Parent) == 0
 					cClassName = Parent
 					cObjName = ObjName
-				ELSE
-					cClassName = LEFTC(Parent, AT_C('.', Parent) - 1)
-					cObjName = SUBSTRC(Parent, AT_C('.', Parent) + 1) + '.' + ObjName
-				ENDIF
-			ENDIF
+				Else
+					cClassName = Leftc(Parent, At_c('.', Parent) - 1)
+					cObjName = Substrc(Parent, At_c('.', Parent) + 1) + '.' + ObjName
+				Endif
+			Endif
 
 			* defined properties and methods
-*!*				IF !EMPTY(Reserved3)
-*!*					m.lSuccess = THIS.FindDefinedPEMS(Reserved3, NVL(cRootClass, cClassName), cObjName, SEARCHTYPE_EXPR, UniqueID)
-*!*				ENDIF
+			*!*				IF !EMPTY(Reserved3)
+			*!*					m.lSuccess = THIS.FindDefinedPEMS(Reserved3, NVL(cRootClass, cClassName), cObjName, SEARCHTYPE_EXPR, UniqueID)
+			*!*				ENDIF
 
-			IF !EMPTY(Reserved3)
-				m.lSuccess = THIS.FindDefinedMethods(Reserved3, NVL(cRootClass, cClassName), cObjName, SEARCHTYPE_EXPR, UniqueID)
-			ENDIF
+			If !Empty(Reserved3)
+				m.lSuccess = This.FindDefinedMethods(Reserved3, Nvl(cRootClass, cClassName), cObjName, SEARCHTYPE_EXPR, UniqueID)
+			Endif
 
-			IF !EMPTY(Methods)
-				m.lSuccess = THIS.FindInCode(Methods, FINDTYPE_CODE, NVL(cRootClass, cClassName), cObjName, SEARCHTYPE_METHOD, UniqueID, "METHODS")
-			ENDIF
-			IF !THIS.CodeOnly
-				IF !EMPTY(ObjName)
-					m.lSuccess = THIS.FindInText(ObjName, FINDTYPE_NAME, NVL(cRootClass, cClassName), cObjName, SEARCHTYPE_EXPR, UniqueID, "OBJNAME", .T.)
-				ENDIF
-			ENDIF
+			If !Empty(Methods)
+				m.lSuccess = This.FindInCode(Methods, FINDTYPE_CODE, Nvl(cRootClass, cClassName), cObjName, SEARCHTYPE_METHOD, UniqueID, "METHODS")
+			Endif
 
-			IF THIS.FormProperties AND !EMPTY(Properties)
-				m.lSuccess = THIS.FindInProperties(Properties, Reserved3, NVL(cRootClass, cClassName), cObjName, SEARCHTYPE_EXPR, UniqueID)
-			ENDIF
-		ENDSCAN
-		SELECT (nSelect)
-		
-		RETURN m.lSuccess
-	ENDFUNC
+			If !This.CodeOnly
+				If !Empty(ObjName)
+					If Reserved1 == "Class"
+						m.lSuccess = This.FindInText('Name = ' + ObjName, FINDTYPE_NAME, Nvl(cRootClass, cClassName), CLASSDEF_LOC, SEARCHTYPE_EXPR, UniqueID, "OBJNAME", .T.)
+					Else
+						*	m.lSuccess = This.FindInText('Name = ' + ObjName, FINDTYPE_NAME, Nvl(cRootClass, cClassName), IIF('.' $ Parent, Substr (Parent, 1 + At('.', Parent)) + '.', '') + OBJECTDEF_LOC, SEARCHTYPE_EXPR, UniqueID, "OBJNAME", .T.)
+						m.lSuccess = This.FindInText('Name = ' + ObjName, FINDTYPE_NAME, Nvl(cRootClass, cClassName), IIF('.' $ Parent, Substr (Parent, 1 + At('.', Parent)) + '.', '') + ObjName + "." + OBJECTDEF_LOC, SEARCHTYPE_EXPR, UniqueID, "OBJNAME", .T.)
+					Endif
+				Endif
+			Endif
+
+			*** JRN 2010-03-12 : search in class
+			If !Empty(Class)
+				*	m.lSuccess = This.FindInText(Class, FINDTYPE_CLASS, Nvl(cRootClass, cClassName), cObjName, SEARCHTYPE_EXPR, UniqueID, "Class", .T.)
+				*	m.lSuccess = THIS.FindInLine(Class, FINDTYPE_CLASS, Nvl(cRootClass, cClassName), cObjName, SEARCHTYPE_EXPR, UniqueID, "Class", .T.)
+				m.lSuccess = This.FindInLine(Class, FINDTYPE_CLASS, Nvl(cRootClass, cClassName), cObjName + Iif(Empty(cObjName), '', '.') + CLASSNAME_LOC, SEARCHTYPE_EXPR, UniqueID, "Class", .T.)
+			Endif
+
+			If This.FormProperties And !Empty(Properties)
+				m.lSuccess = This.FindInProperties(Properties, Reserved3, Nvl(cRootClass, cClassName), cObjName, SEARCHTYPE_EXPR, UniqueID)
+			Endif
+		Endscan
+		Select (nSelect)
+
+		Return m.lSuccess
+	Endfunc
 
 
-	FUNCTION DoReplace(cReplaceText AS String, oReplaceCollection)
-		LOCAL nSelect
-		LOCAL cObjCode
-		LOCAL oFoxRefRecord
-		LOCAL cRefCode
-		LOCAL cColumn
-		LOCAL cTable
-		LOCAL cUpdField
-		LOCAL cRecordID
-		LOCAL cNewText
-		LOCAL oError
-		LOCAL i
-		LOCAL oMethodCollection
-		
-		m.oError = .NULL.
+	Function DoReplace(cReplaceText As String, oReplaceCollection)
+		Local nSelect
+		Local cObjCode
+		Local oFoxRefRecord
+		Local cRefCode
+		Local cColumn
+		Local cTable
+		Local cUpdField
+		Local cRecordID
+		Local cNewText
+		Local oError
+		Local i
+		Local oMethodCollection
 
-		nSelect = SELECT()
+		m.oError = .Null.
+
+		nSelect = Select()
 
 		oFoxRefRecord = oReplaceCollection.Item(1)
 		cRefCode  = oFoxRefRecord.Abstract
-		cColumn   = RTRIM(oFoxRefRecord.ClassName)
-		cTable    = JUSTSTEM(THIS.Filename)
-		cUpdField = RTRIM(oFoxRefRecord.UpdField)
+		cColumn   = Rtrim(oFoxRefRecord.ClassName)
+		cTable    = Juststem(This.Filename)
+		cUpdField = Rtrim(oFoxRefRecord.UpdField)
 		cRecordID = oFoxRefRecord.RecordID
 		cNewText  = cRefCode
 
-		SELECT TABLEFIND_ALIAS
-		LOCATE FOR UniqueID == cRecordID
-		IF FOUND()
-			TRY
-				DO CASE
-				CASE cUpdField = "METHODS"
-					cNewText = Methods
-					FOR m.i = oReplaceCollection.Count TO 1 STEP -1
-						oFoxRefRecord = oReplaceCollection.Item(m.i)
-						m.cNewText = THIS.ReplaceText(m.cNewText, oFoxRefRecord.LineNo, oFoxRefRecord.ColPos, oFoxRefRecord.MatchLen, m.cReplaceText, oFoxRefRecord.Abstract)
-					ENDFOR
+		Select TABLEFIND_ALIAS
+		Locate For UniqueID == cRecordID
+		If Found()
+			Try
+				Do Case
+					Case cUpdField = "METHODS"
+						cNewText = Methods
+						For m.i = oReplaceCollection.Count To 1 Step -1
+							oFoxRefRecord = oReplaceCollection.Item(m.i)
+							m.cNewText = This.ReplaceText(m.cNewText, oFoxRefRecord.Lineno, oFoxRefRecord.ColPos, oFoxRefRecord.MatchLen, m.cReplaceText, oFoxRefRecord.Abstract)
+						Endfor
 
-*!*						FOR EACH oFoxRefRecord IN oReplaceCollection
-*!*							cNewText = THIS.ReplaceText(cNewText, oFoxRefRecord.LineNo, oFoxRefRecord.ColPos, oFoxRefRecord.MatchLen, cReplaceText, oFoxRefRecord.Abstract)
-*!*						ENDFOR
-					
-					IF ISNULL(cNewText)
-						THROW ERROR_REPLACE_LOC
-					ELSE
-						cObjCode = THIS.CompileCode(cNewText)
-						IF !ISNULL(cObjCode)
-							* update reserved3 and protected field which correspeonds to our list of properties and methods
-							REPLACE ;
-							  Methods WITH cNewText, ;
-							  ObjCode WITH cObjCode ;
-							 IN TABLEFIND_ALIAS
+						*!*						FOR EACH oFoxRefRecord IN oReplaceCollection
+						*!*							cNewText = THIS.ReplaceText(cNewText, oFoxRefRecord.LineNo, oFoxRefRecord.ColPos, oFoxRefRecord.MatchLen, cReplaceText, oFoxRefRecord.Abstract)
+						*!*						ENDFOR
 
-							IF !EMPTY(TimeStamp)
-								REPLACE TimeStamp WITH THIS.RowTimeStamp() IN TABLEFIND_ALIAS
-							ENDIF
-						ENDIF
-					ENDIF
+						If Isnull(cNewText)
+							Throw ERROR_REPLACE_LOC
+						Else
+							cObjCode = This.CompileCode(cNewText)
+							If !Isnull(cObjCode)
+								* update reserved3 and protected field which correspeonds to our list of properties and methods
+								Replace ;
+									Methods With cNewText, ;
+									ObjCode With cObjCode ;
+									IN TABLEFIND_ALIAS
 
-				CASE cUpdField = "RESERVED8"
-					cNewText = Reserved8
-					FOR m.i = oReplaceCollection.Count TO 1 STEP -1
-						oFoxRefRecord = oReplaceCollection.Item(m.i)
-						m.cNewText = THIS.ReplaceText(m.cNewText, oFoxRefRecord.LineNo, oFoxRefRecord.ColPos, oFoxRefRecord.MatchLen, m.cReplaceText, oFoxRefRecord.Abstract)
-					ENDFOR
-*!*						FOR EACH oFoxRefRecord IN oReplaceCollection
-*!*							m.cNewText = THIS.ReplaceText(m.cNewText, oFoxRefRecord.LineNo, oFoxRefRecord.ColPos, oFoxRefRecord.MatchLen, m.cReplaceText, m.oFoxRefRecord.Abstract)
-*!*						ENDFOR
-					IF ISNULL(cNewText)
-						THROW ERROR_REPLACE_LOC
-					ELSE
-						REPLACE ;
-						  Reserved8 WITH cNewText ;
-						 IN TABLEFIND_ALIAS
+								If !Empty(Timestamp)
+									Replace Timestamp With This.RowTimeStamp() In TABLEFIND_ALIAS
+								Endif
+							Endif
+						Endif
 
-						IF !EMPTY(TimeStamp)
-							REPLACE TimeStamp WITH THIS.RowTimeStamp() IN TABLEFIND_ALIAS
-						ENDIF
-					ENDIF
+					Case cUpdField = "RESERVED8"
+						cNewText = Reserved8
+						For m.i = oReplaceCollection.Count To 1 Step -1
+							oFoxRefRecord = oReplaceCollection.Item(m.i)
+							m.cNewText = This.ReplaceText(m.cNewText, oFoxRefRecord.Lineno, oFoxRefRecord.ColPos, oFoxRefRecord.MatchLen, m.cReplaceText, oFoxRefRecord.Abstract)
+						Endfor
+						*!*						FOR EACH oFoxRefRecord IN oReplaceCollection
+						*!*							m.cNewText = THIS.ReplaceText(m.cNewText, oFoxRefRecord.LineNo, oFoxRefRecord.ColPos, oFoxRefRecord.MatchLen, m.cReplaceText, m.oFoxRefRecord.Abstract)
+						*!*						ENDFOR
+						If Isnull(cNewText)
+							Throw ERROR_REPLACE_LOC
+						Else
+							Replace ;
+								Reserved8 With cNewText ;
+								IN TABLEFIND_ALIAS
 
-				CASE cUpdField = "METHODNAME"
-					* replacement not supported
+							If !Empty(Timestamp)
+								Replace Timestamp With This.RowTimeStamp() In TABLEFIND_ALIAS
+							Endif
+						Endif
 
-				CASE cUpdField = "PROPERTYNAME"
-					* replacement not supported
-*!*						cNewText = Properties
-*!*						FOR EACH oFoxRefRecord IN oReplaceCollection
-*!*							cNewText = THIS.ReplaceText(cNewText, oFoxRefRecord.LineNo, oFoxRefRecord.ColPos, oFoxRefRecord.MatchLen, cReplaceText, oFoxRefRecord.Abstract)
-*!*						ENDFOR
+					Case cUpdField = "METHODNAME"
+						* replacement not supported
 
-				CASE cUpdField = "PROPERTYVALUE"
-					* replacement not supported
-*!*						cNewText = Properties
-*!*						FOR EACH oFoxRefRecord IN oReplaceCollection
-*!*							cNewText = THIS.ReplaceText(cNewText, oFoxRefRecord.LineNo, oFoxRefRecord.ColPos, oFoxRefRecord.MatchLen, cReplaceText, oFoxRefRecord.Abstract)
-*!*						ENDFOR
+					Case cUpdField = "PROPERTYNAME"
+						* replacement not supported
+						*!*						cNewText = Properties
+						*!*						FOR EACH oFoxRefRecord IN oReplaceCollection
+						*!*							cNewText = THIS.ReplaceText(cNewText, oFoxRefRecord.LineNo, oFoxRefRecord.ColPos, oFoxRefRecord.MatchLen, cReplaceText, oFoxRefRecord.Abstract)
+						*!*						ENDFOR
 
-				CASE cUpdField = "OBJNAME"
-				ENDCASE
+					Case cUpdField = "PROPERTYVALUE"
+						* replacement not supported
+						*!*						cNewText = Properties
+						*!*						FOR EACH oFoxRefRecord IN oReplaceCollection
+						*!*							cNewText = THIS.ReplaceText(cNewText, oFoxRefRecord.LineNo, oFoxRefRecord.ColPos, oFoxRefRecord.MatchLen, cReplaceText, oFoxRefRecord.Abstract)
+						*!*						ENDFOR
 
-			CATCH TO oError WHEN oError.ErrorNo == 2071
-			CATCH TO oError WHEN oError.ErrorNo == 111  && read-only
-				THROW REPLACE_READONLY_LOC
-			CATCH TO oError
-				THROW oError.Message
-			ENDTRY
-		ENDIF
-	
-		SELECT (nSelect)
-		
-		RETURN m.oError
-	ENDFUNC
+					Case cUpdField = "OBJNAME"
+				Endcase
+
+			Catch To oError When oError.ErrorNo == 2071
+			Catch To oError When oError.ErrorNo == 111  && read-only
+				Throw REPLACE_READONLY_LOC
+			Catch To oError
+				Throw oError.Message
+			Endtry
+		Endif
+
+		Select (nSelect)
+
+		Return m.oError
+	Endfunc
 
 
-	FUNCTION DoReplaceLog(cReplaceText, oReplaceCollection AS Collection)
-		LOCAL cRefCode
-		LOCAL cNewText
-		LOCAL cColumn
-		LOCAL cTable
-		LOCAL cRuleExpr
-		LOCAL cUpdField
-		LOCAL cLog
-		LOCAL oError
-		LOCAL oFoxRefRecord
-		LOCAL cDatabase
+	Function DoReplaceLog(cReplaceText, oReplaceCollection As Collection)
+		Local cRefCode
+		Local cNewText
+		Local cColumn
+		Local cTable
+		Local cRuleExpr
+		Local cUpdField
+		Local cLog
+		Local oError
+		Local oFoxRefRecord
+		Local cDatabase
 
 		m.cLog = ''
-		m.oError = .NULL.
+		m.oError = .Null.
 
 		oFoxRefRecord = oReplaceCollection.Item(1)
 		cRefCode  = oFoxRefRecord.Abstract
-		cColumn   = RTRIM(oFoxRefRecord.ClassName)
-		cTable    = JUSTSTEM(THIS.Filename)
-		cUpdField = RTRIM(oFoxRefRecord.UpdField)
+		cColumn   = Rtrim(oFoxRefRecord.ClassName)
+		cTable    = Juststem(This.Filename)
+		cUpdField = Rtrim(oFoxRefRecord.UpdField)
 		cNewText  = cRefCode
 
-		FOR EACH oFoxRefRecord IN oReplaceCollection
-			cNewText  = LEFTC(cNewText, oFoxRefRecord.ColPos - 1) + cReplaceText + SUBSTRC(cNewText, oFoxRefRecord.ColPos + oFoxRefRecord.MatchLen)
-		ENDFOR
+		For Each oFoxRefRecord In oReplaceCollection
+			cNewText  = Leftc(cNewText, oFoxRefRecord.ColPos - 1) + cReplaceText + Substrc(cNewText, oFoxRefRecord.ColPos + oFoxRefRecord.MatchLen)
+		Endfor
 
-		TRY
-			DO CASE
-			CASE cUpdField = "PROPERTYNAME"
-				m.cLog = LOG_PREFIX + REPLACE_NOTSUPPORTED_LOC
+		Try
+			Do Case
+				Case cUpdField = "PROPERTYNAME"
+					m.cLog = LOG_PREFIX + REPLACE_NOTSUPPORTED_LOC
 
-			CASE cUpdField = "PROPERTYVALUE"
-				m.cLog = LOG_PREFIX + REPLACE_NOTSUPPORTED_LOC
+				Case cUpdField = "PROPERTYVALUE"
+					m.cLog = LOG_PREFIX + REPLACE_NOTSUPPORTED_LOC
 
-			CASE cUpdField = "OBJNAME"
-				m.cLog = LOG_PREFIX + REPLACE_NOTSUPPORTED_LOC
+				Case cUpdField = "OBJNAME"
+					m.cLog = LOG_PREFIX + REPLACE_NOTSUPPORTED_LOC
 
-			CASE cUpdField = "METHODNAME"
-				m.cLog = LOG_PREFIX + REPLACE_NOTSUPPORTED_LOC
+				Case cUpdField = "METHODNAME"
+					m.cLog = LOG_PREFIX + REPLACE_NOTSUPPORTED_LOC
 
-			ENDCASE
+				Case cUpdField = "CLASS"
+					m.cLog = LOG_PREFIX + REPLACE_NOTSUPPORTED_LOC
 
-		CATCH TO oError
-		ENDTRY
-	
-		RETURN m.cLog
-	ENDFUNC
-ENDDEFINE
+			Endcase
+
+		Catch To oError
+		Endtry
+
+		Return m.cLog
+	Endfunc
+Enddefine

@@ -8,821 +8,830 @@
 #include "foxref.h"
 #include "foxpro.h"
 
-DEFINE CLASS RefSearch AS Custom
+Define Class RefSearch As Custom
 	Name = "RefSearch"
 
 	* this is a reference to the engine object (see FoxMatch.prg) that
-	* searches a text string -- for example, it could be replaced 
+	* searches a text string -- for example, it could be replaced
 	* with a regular expression search engine.
-	oSearchEngine  = .NULL.
-	oEngineController = .NULL.
-	
+	oSearchEngine  = .Null.
+	oEngineController = .Null.
+
 	* set to true to not allow this filetype to refreshed (must always re-search)
-	NoRefresh       = .F. 
-	
+	Norefresh       = .F.
+
 	* comma-delimited list of file extensions to backup -- override in subclasses
-	* set to empty string to not backup at all 
-	BackupExtensions = .NULL.
-	
+	* set to empty string to not backup at all
+	BackupExtensions = .Null.
+
 	IncludeDefTable = .T.
 	FormProperties  = .T.
 	CodeOnly        = .F.
 	PreserveCase    = .F. && TRUE to preserve case during a Replace operation
+	CheckOutSCC     = .F. && True if items must be checked out; only if using SCC\
+	TreeViewFolderNames = .F.
 
 	Filename        = ''
 	FName           = ''  && filename w/o path
 	Folder          = ''  && folder file is in
 	Pattern         = ''
 	Comments        = COMMENTS_INCLUDE
-	FileTimeStamp   = .NULL.
+	FileTimeStamp   = .Null.
+	ObjectTimeStamp   = 0
 
 	FileID			= ''
 
 	SetID          = ''
 	RefID          = ''
-	
+
 	ReplaceLog     = ''
 
 	* if an error occurs in a TRY/CATCH, then store it to this property
-	oErr           = .NULL.
+	oErr           = .Null.
 
 	* used internally to track when we need to create a new
 	* unique RefID.  Each reference that appears on the
-	* same line gets the same RefID. 
+	* same line gets the same RefID.
 	nLastLineNo    = -1
 	cLastProcName  = ''
 	cLastClassName = ''
 	cLastFilename  = ''
-	
+
 	nMatchCnt      = 0
-	
+
 	* text of the file we opened
 	cFileText      = ''
 
-	
+
 	lDefinitionsOnly = .F.
-	
-	cExtendedPropertyText = REPLICATE(CHR(1), 517)
 
-	
-	PROCEDURE Init()
-		SET TALK OFF
-		SET DELETED ON
-	
-		THIS.SetID = SYS(2015)  && unique ID	
-		THIS.FileTimeStamp = DATETIME()
-	ENDPROC
-	
-	PROCEDURE Destroy()
-	ENDPROC
-	
+	cExtendedPropertyText = Replicate(Chr(1), 517)
 
-	FUNCTION OpenFile(lReadWrite)
-		LOCAL oException
 
-		m.oException = .NULL.
-		IF FILE(THIS.Filename)
-			TRY
-				THIS.cFileText = FILETOSTR(THIS.Filename)
-			CATCH TO oException
-			ENDTRY
-		ENDIF
+	Procedure Init()
+		Set Talk Off
+		Set Deleted On
 
-		RETURN m.oException
-	ENDFUNC
-	
-	FUNCTION CloseFile
-		THIS.cFileText = ''
-	ENDFUNC
+		This.SetID = Sys(2015)  && unique ID
+		This.FileTimeStamp = Datetime()
+		*** JRN 2010-03-19 : timestamp for each line in VCX / SCX
+		This.ObjectTimeStamp = 0
+	Endproc
+
+	Procedure Destroy()
+	Endproc
+
+
+	Function OpenFile(lReadWrite)
+		Local oException
+
+		m.oException = .Null.
+		If File(This.Filename)
+			Try
+				This.cFileText = Filetostr(This.Filename)
+			Catch To oException
+			Endtry
+		Endif
+
+		Return m.oException
+	Endfunc
+
+	Function CloseFile
+		This.cFileText = ''
+	Endfunc
 
 	* Create a backup of the file
 	* nBackupStyle: 1 = filename.ext.bak  2 = Backup of filename.ext
-	FUNCTION BackupFile(cFilename, nBackupStyle)
-		LOCAL cBackupFile
-		LOCAL cFileToBackup
-		LOCAL lSuccess
-		LOCAL cExt
-		LOCAL i
-		LOCAL nCnt
-		LOCAL cSafety
-		LOCAL oErr
-		LOCAL ARRAY aExtensions[1]
+	Function BackupFile(cFilename, nBackupStyle)
+		Local cBackupFile
+		Local cFileToBackup
+		Local lSuccess
+		Local cExt
+		Local i
+		Local nCnt
+		Local cSafety
+		Local oErr
+		Local Array aExtensions[1]
 
-		IF EMPTY(THIS.BackupExtensions)
-			RETURN .T.
-		ENDIF
+		If Empty(This.BackupExtensions)
+			Return .T.
+		Endif
 
 		m.lSuccess = .T.
-		
-		IF VARTYPE(m.cFilename) <> 'C' OR EMPTY(m.cFilename)
-			m.cFilename = THIS.Filename
-		ENDIF
 
-		m.cSafety = SET("SAFETY")
-		SET SAFETY OFF
-		IF ISNULL(THIS.BackupExtensions)
+		If Vartype(m.cFilename) <> 'C' Or Empty(m.cFilename)
+			m.cFilename = This.Filename
+		Endif
+
+		m.cSafety = Set("SAFETY")
+		Set Safety Off
+		If Isnull(This.BackupExtensions)
 			* assume it's a text file and we only have one file to backup
-			m.cBackupFile = THIS.CreateBackupFilename(m.cFilename, m.nBackupStyle)
-			TRY
-				COPY FILE (m.cFilename) TO (m.cBackupFile)
-			CATCH TO oErr
+			m.cBackupFile = This.CreateBackupFilename(m.cFilename, m.nBackupStyle)
+			Try
+				Copy File (m.cFilename) To (m.cBackupFile)
+			Catch To oErr
 				m.lSuccess = .F.
-			ENDTRY
-		ELSE
-			m.nCnt = ALINES(m.aExtensions, THIS.BackupExtensions, .T., ',')
-			FOR m.i = 1 TO m.nCnt
-				IF !EMPTY(m.aExtensions[i])
-					m.cFileToBackup = FORCEEXT(m.cFilename, m.aExtensions[i])
-					m.cBackupFile = THIS.CreateBackupFilename(m.cFileToBackup, m.nBackupStyle)
-					IF FILE(m.cFileToBackup) AND !EMPTY(m.cBackupFile)
-						TRY
-							COPY FILE (m.cFileToBackup) TO (m.cBackupFile)
-						CATCH TO oErr
+			Endtry
+		Else
+			m.nCnt = Alines(m.aExtensions, This.BackupExtensions, .T., ',')
+			For m.i = 1 To m.nCnt
+				If !Empty(m.aExtensions[i])
+					m.cFileToBackup = Forceext(m.cFilename, m.aExtensions[i])
+					m.cBackupFile = This.CreateBackupFilename(m.cFileToBackup, m.nBackupStyle)
+					If File(m.cFileToBackup) And !Empty(m.cBackupFile)
+						Try
+							Copy File (m.cFileToBackup) To (m.cBackupFile)
+						Catch To oErr
 							m.lSuccess = .F.
-						ENDTRY
-					ENDIF
-				ENDIF
-			ENDFOR
-		ENDIF
-		SET SAFETY &cSafety
+						Endtry
+					Endif
+				Endif
+			Endfor
+		Endif
+		Set Safety &cSafety
 
-		
-		RETURN m.lSuccess
-	ENDFUNC
-	
+
+		Return m.lSuccess
+	Endfunc
+
 	* nBackupStyle: 1 = filename.ext.bak  2 = Backup of filename.ext
-	PROTECTED FUNCTION CreateBackupFilename(cFilename, nBackupStyle)
-		DO CASE
-		CASE m.nBackupStyle == 1 && filename.ext.bak
-			m.cFilename = m.cFilename + '.' + BACKUP_EXTENSION
+	Protected Function CreateBackupFilename(cFilename, nBackupStyle)
+		Do Case
+			Case m.nBackupStyle == 1 && filename.ext.bak
+				m.cFilename = m.cFilename + '.' + BACKUP_EXTENSION
 
-		CASE m.nBackupStyle == 2 && "Backup of filename.ext"
-			m.cFilename = ADDBS(JUSTPATH(m.cFilename)) + BACKUP_PREFIX_LOC + ' ' + JUSTFNAME(m.cFilename)
+			Case m.nBackupStyle == 2 && "Backup of filename.ext"
+				m.cFilename = Addbs(Justpath(m.cFilename)) + BACKUP_PREFIX_LOC + ' ' + Justfname(m.cFilename)
 
-		OTHERWISE && same as style = 1
-			m.cFilename = m.cFilename + '.' + BACKUP_EXTENSION
-		ENDCASE
-		
-		RETURN m.cFilename
-	ENDFUNC
+			Otherwise && same as style = 1
+				m.cFilename = m.cFilename + '.' + BACKUP_EXTENSION
+		Endcase
+
+		Return m.cFilename
+	Endfunc
 
 
-	PROCEDURE SetTimeStamp()
-		TRY
-			THIS.FileTimeStamp = FDATE(THIS.Filename, 1)
-		CATCH
-			THIS.FileTimeStamp = DATETIME()
-		ENDTRY
-	ENDFUNC
+	Procedure SetTimeStamp()
+		Try
+			This.FileTimeStamp = Fdate(This.Filename, 1)
+		Catch
+			This.FileTimeStamp = Datetime()
+		Endtry
+		This.ObjectTimeStamp = 0
+	Endfunc
 
 	* Generate a FoxPro 3.0-style row timestamp
-	PROTECTED FUNCTION RowTimeStamp(tDateTime)
-		LOCAL cTimeValue
-		IF VARTYPE(m.tDateTime) <> 'T'
-			m.tDateTime = DATETIME()
-			m.cTimeValue = TIME()
-		ELSe
-			m.cTimeValue = TTOC(m.tDateTime, 2)
-		ENDIF
+	Protected Function RowTimeStamp(tDateTime)
+		Local cTimeValue
+		If Vartype(m.tDateTime) <> 'T'
+			m.tDateTime = Datetime()
+			m.cTimeValue = Time()
+		Else
+			m.cTimeValue = Ttoc(m.tDateTime, 2)
+		Endif
 
-		RETURN ((YEAR(m.tDateTime) - 1980) * 2 ** 25);
-			+ (MONTH(m.tDateTime) * 2 ** 21);
-			+ (DAY(m.tDateTime) * 2 ** 16);
-			+ (VAL(LEFTC(m.cTimeValue, 2)) * 2 ** 11);
-			+ (VAL(SUBSTRC(m.cTimeValue, 4, 2)) * 2 ** 5);
-			+  VAL(RIGHTC(m.cTimeValue, 2))
-	ENDFUNC
+		Return ((Year(m.tDateTime) - 1980) * 2 ** 25);
+			+ (Month(m.tDateTime) * 2 ** 21);
+			+ (Day(m.tDateTime) * 2 ** 16);
+			+ (Val(Leftc(m.cTimeValue, 2)) * 2 ** 11);
+			+ (Val(Substrc(m.cTimeValue, 4, 2)) * 2 ** 5);
+			+  Val(Rightc(m.cTimeValue, 2))
+	Endfunc
 
 
 	* -- This is the method that should get overridden
-	FUNCTION DoSearch()
-		RETURN THIS.FindInText(THIS.cFileText, FINDTYPE_TEXT, '', '', SEARCHTYPE_NORMAL)
-	ENDFUNC
+	Function DoSearch()
+		Return This.FindInText(This.cFileText, FINDTYPE_TEXT, '', '', SEARCHTYPE_NORMAL)
+	Endfunc
 
 	* -- Abstract method for parsing symbol definitions
 	* -- out of a file
-	FUNCTION DoDefinitions()
-	ENDFUNC
+	Function DoDefinitions()
+	Endfunc
 
 	* do a replacement on text
-	FUNCTION DoReplace(cReplaceText, oReplaceCollection)
-		LOCAL cCodeBlock
-		LOCAL oException
-		LOCAL oFoxRefRecord
-		LOCAL i
-		
-		m.oException = .NULL.
+	Function DoReplace(cReplaceText, oReplaceCollection)
+		Local cCodeBlock
+		Local oException
+		Local oFoxRefRecord
+		Local i
 
-		m.cCodeBlock = THIS.cFileText
-		FOR m.i = oReplaceCollection.Count TO 1 STEP -1
+		m.oException = .Null.
+
+		m.cCodeBlock = This.cFileText
+		For m.i = oReplaceCollection.Count To 1 Step -1
 			oFoxRefRecord = oReplaceCollection.Item(m.i)
-			m.cCodeBlock = THIS.ReplaceText(m.cCodeBlock, oFoxRefRecord.LineNo, oFoxRefRecord.ColPos, oFoxRefRecord.MatchLen, m.cReplaceText, oFoxRefRecord.Abstract)
-		ENDFOR
-		TRY
-			IF ISNULL(m.cCodeBlock)
-				THROW ERROR_REPLACE_LOC
-			ELSE
-				IF (STRTOFILE(m.cCodeBlock, THIS.Filename) == 0)
-					THROW ERROR_WRITE_LOC
-				ENDIF
-			ENDIF
+			m.cCodeBlock = This.ReplaceText(m.cCodeBlock, oFoxRefRecord.Lineno, oFoxRefRecord.ColPos, oFoxRefRecord.MatchLen, m.cReplaceText, oFoxRefRecord.Abstract)
+		Endfor
+		Try
+			If Isnull(m.cCodeBlock)
+				Throw ERROR_REPLACE_LOC
+			Else
+				If (Strtofile(m.cCodeBlock, This.Filename) == 0)
+					Throw ERROR_WRITE_LOC
+				Endif
+			Endif
 
-		CATCH TO oException
-		ENDTRY
-				
-		RETURN m.oException
-	ENDFUNC
+		Catch To oException
+		Endtry
+
+		Return m.oException
+	Endfunc
 
 	* return what to add to the replace log
-	FUNCTION DoReplaceLog(cReplaceText, oReplaceCollection)
-		RETURN ''
-	ENDFUNC
+	Function DoReplaceLog(cReplaceText, oReplaceCollection)
+		Return ''
+	Endfunc
 
 	* add an error in the FoxRef cursor
-	FUNCTION AddError(cErrorMsg)
-		IF SEEK(REFTYPE_INACTIVE, "FoxRefCursor", "RefType")
-			REPLACE ;
-			  SetID WITH THIS.SetID, ;
-			  RefID WITH SYS(2015), ;
-			  RefType WITH REFTYPE_ERROR, ;
-			  FileID WITH THIS.FileID, ;
-			  Symbol WITH '', ;
-			  ClassName WITH '', ;
-			  ProcName WITH '', ;
-			  ProcLineNo WITH 0, ;
-			  LineNo WITH 0, ;
-			  ColPos WITH 0, ;
-			  MatchLen WITH 0, ;
-			  Abstract WITH m.cErrorMsg, ;
-			  RecordID WITH '', ;
-			  UpdField WITH '', ;
-			  Checked WITH .F., ;
-			  NoReplace WITH .F., ;
-			  TimeStamp WITH DATETIME(), ;
-			  Inactive WITH .F. ;
-			 IN FoxRefCursor
-		ELSE
-			INSERT INTO FoxRefCursor ( ;
-			  UniqueID, ;
-			  SetID, ;
-			  RefID, ;
-			  RefType, ;
-			  FileID, ;
-			  Symbol, ;
-			  ClassName, ;
-			  ProcName, ;
-			  ProcLineNo, ;
-			  LineNo, ;
-			  ColPos, ;
-			  MatchLen, ;
-			  Abstract, ;
-			  RecordID, ;
-			  UpdField, ;
-			  Checked, ;
-			  NoReplace, ;
-			  Timestamp, ;
-			  Inactive ;
-			 ) VALUES ( ;
-			  SYS(2015), ;
-			  THIS.SetID, ;
-			  SYS(2015), ;
-			  REFTYPE_ERROR, ;
-			  THIS.FileID, ;
-			  '', ;
-			  '', ;
-			  '', ;
-			  0, ;
-			  0, ;
-			  0, ;
-			  0, ;
-			  m.cErrorMsg, ;
-			  '', ;
-			  '', ;
-			  .F., ;
-			  .F., ;
-			  DATETIME(), ;
-			  .F. ;
-			 )
-		ENDIF
-	ENDFUNC
+	Function AddError(cErrorMsg)
+		If Seek(REFTYPE_INACTIVE, "FoxRefCursor", "RefType")
+			Replace ;
+				SetID With This.SetID, ;
+				RefID With Sys(2015), ;
+				RefType With REFTYPE_ERROR, ;
+				FileID With This.FileID, ;
+				Symbol With '', ;
+				ClassName With '', ;
+				ProcName With '', ;
+				ProcLineNo With 0, ;
+				LineNo With 0, ;
+				ColPos With 0, ;
+				MatchLen With 0, ;
+				Abstract With m.cErrorMsg, ;
+				RecordID With '', ;
+				UpdField With '', ;
+				Checked With .F., ;
+				NoReplace With .F., ;
+				TimeStamp With Datetime(), ;
+				Inactive With .F. ;
+				IN FoxRefCursor
+		Else
+			Insert Into FoxRefCursor ( ;
+				UniqueID, ;
+				SetID, ;
+				RefID, ;
+				RefType, ;
+				FileID, ;
+				Symbol, ;
+				ClassName, ;
+				ProcName, ;
+				ProcLineNo, ;
+				LineNo, ;
+				ColPos, ;
+				MatchLen, ;
+				Abstract, ;
+				RecordID, ;
+				UpdField, ;
+				Checked, ;
+				NoReplace, ;
+				Timestamp, ;
+				Inactive ;
+				) Values ( ;
+				SYS(2015), ;
+				THIS.SetID, ;
+				SYS(2015), ;
+				REFTYPE_ERROR, ;
+				THIS.FileID, ;
+				'', ;
+				'', ;
+				'', ;
+				0, ;
+				0, ;
+				0, ;
+				0, ;
+				m.cErrorMsg, ;
+				'', ;
+				'', ;
+				.F., ;
+				.F., ;
+				DATETIME(), ;
+				.F. ;
+				)
+		Endif
+	Endfunc
 
-	FUNCTION AddMatch(cFindType, cClassName, cProcName, nProcLineNo, nLineNo, nColPos, nMatchLen, cCode, cRecordID, cUpdField, lNoReplace)
-		LOCAL cSymbol
-		LOCAL ARRAY aPropInfo[1]
-		
-		THIS.nMatchCnt = THIS.nMatchCnt + 1
+	Function AddMatch(cFindType, cClassName, cProcName, nProcLineNo, nLineNo, nColPos, nMatchLen, cCode, cRecordID, cUpdField, lNoReplace)
+		Local cSymbol
+		Local Array aPropInfo[1]
 
-		IF THIS.nLastLineNo <> nLineNo OR !(THIS.cLastProcName == cProcName) OR !(THIS.cLastClassName == cClassName) OR !(THIS.cLastFilename == THIS.Filename)
-			THIS.RefID = SYS(2015)
-		ENDIF
+		This.nMatchCnt = This.nMatchCnt + 1
+
+		If This.nLastLineNo <> nLineNo Or !(This.cLastProcName == cProcName) Or !(This.cLastClassName == cClassName) Or !(This.cLastFilename == This.Filename)
+			This.RefID = Sys(2015)
+		Endif
 
 
 		* if it's a property and occured in an extended property (multi-line property), then get the symbol
-		IF m.cFindType == FINDTYPE_PROPERTYVALUE AND m.nProcLineNo > 1
-			IF ALINES(aPropInfo, m.cCode) >= m.nProcLineNo
-				m.cSymbol = SUBSTRC(aPropInfo[m.nProcLineNo], m.nColPos, m.nMatchLen)
-			ELSE
-				m.cSymbol = SUBSTRC(m.cCode, m.nColPos, m.nMatchLen)	
-			ENDIF
-		ELSE
-			m.cSymbol = SUBSTRC(m.cCode, m.nColPos, m.nMatchLen)	
-		ENDIF
+		If m.cFindType == FINDTYPE_PROPERTYVALUE And m.nProcLineNo > 1
+			If Alines(aPropInfo, m.cCode) >= m.nProcLineNo
+				m.cSymbol = Substrc(aPropInfo[m.nProcLineNo], m.nColPos, m.nMatchLen)
+			Else
+				m.cSymbol = Substrc(m.cCode, m.nColPos, m.nMatchLen)
+			Endif
+		Else
+			m.cSymbol = Substrc(m.cCode, m.nColPos, m.nMatchLen)
+		Endif
 
 
-		
-		SELECT FoxRefCursor
-		IF SEEK(REFTYPE_INACTIVE, "FoxRefCursor", "RefType")
-			REPLACE ;
-			  SetID WITH THIS.SetID, ;
-			  RefID WITH THIS.RefID, ;
-			  RefType WITH REFTYPE_RESULT, ;
-			  FindType WITH m.cFindtype, ;
-			  FileID WITH THIS.FileID, ;
-			  Symbol WITH cSymbol, ;
-			  ClassName WITH m.cClassName, ;
-			  ProcName WITH m.cProcName, ;
-			  ProcLineNo WITH m.nProcLineNo, ;
-			  LineNo WITH m.nLineNo, ;
-			  ColPos WITH m.nColPos, ;
-			  MatchLen WITH m.nMatchLen, ;
-			  Abstract WITH m.cCode, ;
-			  RecordID WITH m.cRecordID, ;
-			  UpdField WITH m.cUpdField, ;
-			  Checked WITH .F., ;
-			  NoReplace WITH m.lNoReplace, ;
-			  TimeStamp WITH THIS.FileTimeStamp, ;
-			  Inactive WITH .F. ;
-			 IN FoxRefCursor
-		ELSE
-			INSERT INTO FoxRefCursor ( ;
-			  UniqueID, ;
-			  SetID, ;
-			  RefID, ;
-			  RefType, ;
-			  FindType, ;
-			  FileID, ;
-			  Symbol, ;
-			  ClassName, ;
-			  ProcName, ;
-			  ProcLineNo, ;
-			  LineNo, ;
-			  ColPos, ;
-			  MatchLen, ;
-			  Abstract, ;
-			  RecordID, ;
-			  UpdField, ;
-			  Checked, ;
-			  NoReplace, ;
-			  Timestamp, ;
-			  Inactive ;
-			 ) VALUES ( ;
-			  SYS(2015), ;
-			  THIS.SetID, ;
-			  THIS.RefID, ;
-			  REFTYPE_RESULT, ;
-			  m.cFindType, ;
-			  THIS.FileID, ;
-			  m.cSymbol, ;
-			  m.cClassName, ;
-			  m.cProcName, ;
-			  m.nProcLineNo, ;
-			  m.nLineNo, ;
-			  m.nColPos, ;
-			  m.nMatchLen, ;
-			  m.cCode, ;
-			  m.cRecordID, ;
-			  m.cUpdField, ;
-			  .F., ;
-			  m.lNoReplace, ;
-			  THIS.FileTimeStamp, ;
-			  .F. ;
-			 )
-		ENDIF
-				 
-		THIS.nLastLineNo    = m.nLineNo
-		THIS.cLastProcName  = m.cProcName
-		THIS.cLastClassName = m.cClassName
-		THIS.cLastFilename  = THIS.Filename
-	ENDFUNC
+
+		Select FoxRefCursor
+		If Seek(REFTYPE_INACTIVE, "FoxRefCursor", "RefType")
+			Replace ;
+				SetID With This.SetID, ;
+				RefID With This.RefID, ;
+				RefType With REFTYPE_RESULT, ;
+				FindType With m.cFindType, ;
+				FileID With This.FileID, ;
+				Symbol With cSymbol, ;
+				ClassName With m.cClassName, ;
+				ProcName With m.cProcName, ;
+				ProcLineNo With m.nProcLineNo, ;
+				LineNo With m.nLineNo, ;
+				ColPos With m.nColPos, ;
+				MatchLen With m.nMatchLen, ;
+				Abstract With m.cCode, ;
+				RecordID With m.cRecordID, ;
+				UpdField With m.cUpdField, ;
+				Checked With .F., ;
+				NoReplace With m.lNoReplace, ;
+				TimeStamp With This.FileTimeStamp, ;
+				Inactive With .F. ;
+				IN FoxRefCursor
+		Else
+			Insert Into FoxRefCursor ( ;
+				UniqueID, ;
+				SetID, ;
+				RefID, ;
+				RefType, ;
+				FindType, ;
+				FileID, ;
+				Symbol, ;
+				ClassName, ;
+				ProcName, ;
+				ProcLineNo, ;
+				LineNo, ;
+				ColPos, ;
+				MatchLen, ;
+				Abstract, ;
+				RecordID, ;
+				UpdField, ;
+				Checked, ;
+				NoReplace, ;
+				Timestamp, ;
+				oTimestamp, ;
+				Inactive ;
+				) Values ( ;
+				SYS(2015), ;
+				THIS.SetID, ;
+				THIS.RefID, ;
+				REFTYPE_RESULT, ;
+				m.cFindType, ;
+				THIS.FileID, ;
+				m.cSymbol, ;
+				m.cClassName, ;
+				m.cProcName, ;
+				m.nProcLineNo, ;
+				m.nLineNo, ;
+				m.nColPos, ;
+				m.nMatchLen, ;
+				m.cCode, ;
+				m.cRecordID, ;
+				m.cUpdField, ;
+				.F., ;
+				m.lNoReplace, ;
+				THIS.FileTimeStamp, ;
+				THIS.ObjectTimeStamp, ;
+				.F. ;
+				)
+		Endif
+
+		This.nLastLineNo    = m.nLineNo
+		This.cLastProcName  = m.cProcName
+		This.cLastClassName = m.cClassName
+		This.cLastFilename  = This.Filename
+	Endfunc
 
 
-	FUNCTION AddDefinition(cSymbol, cDefType, cClassName, cProcName, nProcLineNo, nLineNo, cCode, lIncludeFile)
-		m.cSymbol = UPPER(m.cSymbol)
+	Function AddDefinition(cSymbol, cDefType, cClassName, cProcName, nProcLineNo, nLineNo, cCode, lIncludeFile)
+		m.cSymbol = Upper(m.cSymbol)
 
-		IF !m.lIncludeFile
+		If !m.lIncludeFile
 			* if definition name doesn't begin with an underscore or Alpha character
 			* then assume it's not a valid symbol name
-			IF !ISALPHA(m.cSymbol) AND LEFTC(m.cSymbol, 1) <> '_'
-				RETURN .F.
-			ENDIF
-		
+			If !Isalpha(m.cSymbol) And Leftc(m.cSymbol, 1) <> '_'
+				Return .F.
+			Endif
+
 			* remove any memory variable designations
-			IF LEFTC(m.cSymbol, 2) == "M."	
-				m.cSymbol = SUBSTRC(m.cSymbol, 3)
-				IF EMPTY(m.cSymbol)
-					RETURN .F.
-				ENDIF
-			ENDIF
-		ENDIF
-			
-		THIS.nMatchCnt = THIS.nMatchCnt + 1
+			If Leftc(m.cSymbol, 2) == "M."
+				m.cSymbol = Substrc(m.cSymbol, 3)
+				If Empty(m.cSymbol)
+					Return .F.
+				Endif
+			Endif
+		Endif
 
-		IF THIS.nLastLineNo <> nLineNo OR !(THIS.cLastProcName == cProcName) OR !(THIS.cLastClassName == cClassName) OR !(THIS.cLastFilename == THIS.Filename)
-			THIS.RefID = SYS(2015)
-		ENDIF
+		This.nMatchCnt = This.nMatchCnt + 1
 
-		IF SEEK(.T., "FoxDefCursor", "Inactive")
-			REPLACE ;
-			  DefType WITH m.cDefType, ;
-			  FileID WITH THIS.FileID, ;
-			  Symbol WITH m.cSymbol, ;
-			  ClassName WITH m.cClassName, ;
-			  ProcName WITH m.cProcName, ;
-			  ProcLineNo WITH m.nProcLineNo, ;
-			  LineNo WITH m.nLineNo, ;
-			  Abstract WITH THIS.StripTabs(m.cCode), ;
-			  Inactive WITH .F. ;
-			 IN FoxDefCursor
-		ELSE
-			INSERT INTO FoxDefCursor ( ;
-			  UniqueID, ;
-			  DefType, ;
-			  FileID, ;
-			  Symbol, ;
-			  ClassName, ;
-			  ProcName, ;
-			  ProcLineNo, ;
-			  LineNo, ;
-			  Abstract, ;
-			  Inactive ;
-			 ) VALUES ( ;
-			  SYS(2015), ;
-			  m.cDefType, ;
-			  THIS.FileID, ;
-			  m.cSymbol, ;
-			  m.cClassName, ;
-			  m.cProcName, ;
-			  m.nProcLineNo, ;
-			  m.nLineNo, ;
-			  THIS.StripTabs(m.cCode), ;
-			  .F. ;
-			 )
-		ENDIF
-				 
-		THIS.nLastLineNo    = m.nLineNo
-		THIS.cLastProcName  = m.cProcName
-		THIS.cLastClassName = m.cClassName
-		THIS.cLastFilename  = THIS.Filename
-		
-		RETURN .T.
-	ENDFUNC
+		If This.nLastLineNo <> nLineNo Or !(This.cLastProcName == cProcName) Or !(This.cLastClassName == cClassName) Or !(This.cLastFilename == This.Filename)
+			This.RefID = Sys(2015)
+		Endif
+
+		If Seek(.T., "FoxDefCursor", "Inactive")
+			Replace ;
+				DefType With m.cDefType, ;
+				FileID With This.FileID, ;
+				Symbol With m.cSymbol, ;
+				ClassName With m.cClassName, ;
+				ProcName With m.cProcName, ;
+				ProcLineNo With m.nProcLineNo, ;
+				LineNo With m.nLineNo, ;
+				Abstract With This.StripTabs(m.cCode), ;
+				Inactive With .F. ;
+				IN FoxDefCursor
+		Else
+			Insert Into FoxDefCursor ( ;
+				UniqueID, ;
+				DefType, ;
+				FileID, ;
+				Symbol, ;
+				ClassName, ;
+				ProcName, ;
+				ProcLineNo, ;
+				LineNo, ;
+				Abstract, ;
+				Inactive ;
+				) Values ( ;
+				SYS(2015), ;
+				m.cDefType, ;
+				THIS.FileID, ;
+				m.cSymbol, ;
+				m.cClassName, ;
+				m.cProcName, ;
+				m.nProcLineNo, ;
+				m.nLineNo, ;
+				THIS.StripTabs(m.cCode), ;
+				.F. ;
+				)
+		Endif
+
+		This.nLastLineNo    = m.nLineNo
+		This.cLastProcName  = m.cProcName
+		This.cLastClassName = m.cClassName
+		This.cLastFilename  = This.Filename
+
+		Return .T.
+	Endfunc
 
 	* Add a file to process -- usually when we encounter
 	* #include files while we're processing definitions
-	FUNCTION AddFileToProcess(cDefType, cFilename, cClassName, cProcName, nProcLineNo, nLineNo, cCode)
-		IF LEFTC(m.cFilename, 1) == '"'
-			m.cFilename = SUBSTRC(m.cFilename, 2)
-		ENDIF
-		IF RIGHTC(m.cFilename, 1) == '"'
-			m.cFilename = LEFTC(m.cFilename, LENC(m.cFilename) - 1)
-		ENDIF
+	Function AddFileToProcess(cDefType, cFilename, cClassName, cProcName, nProcLineNo, nLineNo, cCode)
+		If Leftc(m.cFilename, 1) == '"'
+			m.cFilename = Substrc(m.cFilename, 2)
+		Endif
+		If Rightc(m.cFilename, 1) == '"'
+			m.cFilename = Leftc(m.cFilename, Lenc(m.cFilename) - 1)
+		Endif
 
-		IF VARTYPE(THIS.oEngineController) == 'O'
-			THIS.oEngineController.AddFileToProcess(m.cFilename)
-		ENDIF
+		If Vartype(This.oEngineController) == 'O'
+			This.oEngineController.AddFileToProcess(m.cFilename)
+		Endif
 
-		THIS.AddDefinition(m.cFilename, m.cDefType, m.cClassName, m.cProcName, m.nProcLineNo, m.nLineNo, m.cCode, .T.)
-	ENDFUNC	
+		This.AddDefinition(m.cFilename, m.cDefType, m.cClassName, m.cProcName, m.nProcLineNo, m.nLineNo, m.cCode, .T.)
+	Endfunc
 
-	FUNCTION AddFileToSearch(cFilename)
-		IF VARTYPE(THIS.oEngineController) == 'O'
-			THIS.oEngineController.AddFileToSearch(m.cFilename)
-		ENDIF
-	ENDFUNC
+	Function AddFileToSearch(cFilename)
+		If Vartype(This.oEngineController) == 'O'
+			This.oEngineController.AddFileToSearch(m.cFilename)
+		Endif
+	Endfunc
 
 
-	FUNCTION ProcessDefinitions(oEngineController)
-		IF VARTYPE(m.oEngineController) == 'O'
-			THIS.oEngineController = m.oEngineController
-		ENDIF
-		THIS.DoDefinitions()
-		THIS.oEngineController = .NULL.
-	
-	ENDFUNC
+	Function ProcessDefinitions(oEngineController)
+		If Vartype(m.oEngineController) == 'O'
+			This.oEngineController = m.oEngineController
+		Endif
+		This.DoDefinitions()
+		This.oEngineController = .Null.
+
+	Endfunc
 
 	* Returns the FileAction ('N' = Processed w/o Definitions, 'D' = Processed w/definitions, 'E' = Error, 'S' = Stop immediately)
-	FUNCTION SearchFor(cPattern, lSearch, lDefinitions, oEngineController)
-		LOCAL cFileAction && file action to return
-		LOCAL oException
-		LOCAL nSelect
-		
-		m.nSelect = SELECT()
-		
-		IF VARTYPE(m.oEngineController) == 'O'
-			THIS.oEngineController = m.oEngineController
-		ENDIF
-		
-		IF VARTYPE(m.cPattern) == 'C'
-			THIS.Pattern = m.cPattern
-		ENDIF
+	Function SearchFor(cPattern, lSearch, lDefinitions, oEngineController)
+		Local cFileAction && file action to return
+		Local oException
+		Local nSelect
 
-		IF PCOUNT() < 3
-			m.lDefinitions = THIS.IncludeDefTable
-		ENDIF
-	
+		m.nSelect = Select()
+
+		If Vartype(m.oEngineController) == 'O'
+			This.oEngineController = m.oEngineController
+		Endif
+
+		If Vartype(m.cPattern) == 'C'
+			This.Pattern = m.cPattern
+		Endif
+
+		If Pcount() < 3
+			m.lDefinitions = This.IncludeDefTable
+		Endif
+
 		m.cFileAction = ''
 
-		THIS.FName  = JUSTFNAME(THIS.Filename)
-		THIS.Folder = JUSTPATH(THIS.Filename)
-		THIS.nMatchCnt = 0
+		This.FName  = Justfname(This.Filename)
+		This.Folder = Justpath(This.Filename)
+		This.nMatchCnt = 0
 
-		IF THIS.oSearchEngine.SetPattern(THIS.Pattern)
-			m.oException = THIS.OpenFile()
-			IF ISNULL(m.oException)
-				TRY
-					IF m.lDefinitions
-						THIS.nLastLineNo = -1
-						THIS.DoDefinitions()
-						
+		If This.oSearchEngine.SetPattern(This.Pattern)
+			m.oException = This.OpenFile()
+			If Isnull(m.oException)
+				Try
+					If m.lDefinitions
+						This.nLastLineNo = -1
+						This.DoDefinitions()
+
 						m.cFileAction = FILEACTION_DEFINITIONS
-					ENDIF
+					Endif
 
-					IF lSearch AND !EMPTY(m.cPattern) && if no search pattern passed, then only do definitions
-						THIS.nLastLineNo = -1
-						IF !THIS.DoSearch()
+					If lSearch And !Empty(m.cPattern) && if no search pattern passed, then only do definitions
+						This.nLastLineNo = -1
+						If !This.DoSearch()
 							m.cFileAction = FILEACTION_STOP
-						ENDIF
-					ENDIF
+						Endif
+					Endif
 
-					THIS.CloseFile()
+					This.CloseFile()
 
-					IF THIS.nMatchCnt == 0 AND !(m.cFileAction == FILEACTION_STOP)
-						IF SEEK(REFTYPE_INACTIVE, "FoxRefCursor", "RefType")
-							REPLACE ;
-							  SetID WITH THIS.SetID, ;
-							  RefID WITH SYS(2015), ;
-							  RefType WITH REFTYPE_NOMATCH, ;
-							  FileID WITH THIS.FileID, ;
-							  Symbol WITH '', ;
-							  ClassName WITH '', ;
-							  ProcName WITH '', ;
-							  ProcLineNo WITH 0, ;
-							  LineNo WITH 0, ;
-							  ColPos WITH 0, ;
-							  MatchLen WITH 0, ;
-							  Abstract WITH '', ;
-							  RecordID WITH '', ;
-							  UpdField WITH '', ;
-							  Checked WITH .F., ;
-							  NoReplace WITH .F., ;
-							  TimeStamp WITH THIS.FileTimeStamp, ;
-							  Inactive WITH .F. ;
-							 IN FoxRefCursor
-						ELSE
+					If This.nMatchCnt == 0 And !(m.cFileAction == FILEACTION_STOP)
+						If Seek(REFTYPE_INACTIVE, "FoxRefCursor", "RefType")
+							Replace ;
+								SetID With This.SetID, ;
+								RefID With Sys(2015), ;
+								RefType With REFTYPE_NOMATCH, ;
+								FileID With This.FileID, ;
+								Symbol With '', ;
+								ClassName With '', ;
+								ProcName With '', ;
+								ProcLineNo With 0, ;
+								LineNo With 0, ;
+								ColPos With 0, ;
+								MatchLen With 0, ;
+								Abstract With '', ;
+								RecordID With '', ;
+								UpdField With '', ;
+								Checked With .F., ;
+								NoReplace With .F., ;
+								TimeStamp With This.FileTimeStamp, ;
+								Inactive With .F. ;
+								IN FoxRefCursor
+						Else
 							* no matches, but still record that we searched this file
-							INSERT INTO FoxRefCursor ( ;
-							  UniqueID, ;
-							  SetID, ;
-							  RefID, ;
-							  RefType, ;
-							  FileID, ;
-							  Symbol, ;
-							  ClassName, ;
-							  ProcName, ;
-							  ProcLineNo, ;
-							  LineNo, ;
-							  ColPos, ;
-							  MatchLen, ;
-							  Abstract, ;
-							  RecordID, ;
-							  UpdField, ;
-							  Checked, ;
-							  NoReplace, ;
-							  Timestamp, ;
-							  Inactive ;
-							 ) VALUES ( ;
-							  SYS(2015), ;
-							  THIS.SetID, ;
-							  SYS(2015), ;
-							  REFTYPE_NOMATCH, ;
-							  THIS.FileID, ;
-							  '', ;
-							  '', ;
-							  '', ;
-							  0, ;
-							  0, ;
-							  0, ;
-							  0, ;
-							  '', ;
-							  '', ;
-							  '', ;
-							  .F., ;
-							  .F., ;
-							  THIS.FileTimeStamp, ;
-							  .F. ;
-							 )
-						ENDIF
-					ENDIF
-				CATCH TO oException
+							Insert Into FoxRefCursor ( ;
+								UniqueID, ;
+								SetID, ;
+								RefID, ;
+								RefType, ;
+								FileID, ;
+								Symbol, ;
+								ClassName, ;
+								ProcName, ;
+								ProcLineNo, ;
+								LineNo, ;
+								ColPos, ;
+								MatchLen, ;
+								Abstract, ;
+								RecordID, ;
+								UpdField, ;
+								Checked, ;
+								NoReplace, ;
+								Timestamp, ;
+								Inactive ;
+								) Values ( ;
+								SYS(2015), ;
+								THIS.SetID, ;
+								SYS(2015), ;
+								REFTYPE_NOMATCH, ;
+								THIS.FileID, ;
+								'', ;
+								'', ;
+								'', ;
+								0, ;
+								0, ;
+								0, ;
+								0, ;
+								'', ;
+								'', ;
+								'', ;
+								.F., ;
+								.F., ;
+								THIS.FileTimeStamp, ;
+								.F. ;
+								)
+						Endif
+					Endif
+				Catch To oException
 					* error is recorded below
-				ENDTRY
-			ENDIF
-			
-			IF VARTYPE(oException) == 'O'
-				THIS.AddError(IIF(EMPTY(m.oException.UserValue), m.oException.Message, m.oException.UserValue))
+				Endtry
+			Endif
+
+			If Vartype(oException) == 'O'
+				This.AddError(Iif(Empty(m.oException.UserValue), m.oException.Message, m.oException.UserValue))
 				m.cFileAction = FILEACTION_ERROR
-			ENDIF
-		ELSE
+			Endif
+		Else
 			* unable to set the pattern
 			m.cFileAction = FILEACTION_STOP
-		ENDIF
+		Endif
 
-		THIS.oEngineController = .NULL.
-		
-		SELECT (m.nSelect)
-		
-		RETURN m.cFileAction
-	ENDFUNC
+		This.oEngineController = .Null.
+
+		Select (m.nSelect)
+
+		Return m.cFileAction
+	Endfunc
 
 	* this is what FoxRefEngine calls to do the replacements
-	FUNCTION ReplaceWith(cReplaceText, oReplaceCollection, cFilename) AS Boolean
-		LOCAL lSuccess
-		LOCAL nSelect
-		LOCAL oException
-	
-		THIS.Filename = m.cFilename
+	Function ReplaceWith(cReplaceText, oReplaceCollection, cFilename) As Boolean
+		Local lSuccess
+		Local nSelect
+		Local oException
 
-		m.nSelect = SELECT()
+		This.Filename = m.cFilename
 
-		m.oException = THIS.OpenFile(.T.)
+		m.nSelect = Select()
 
-		IF ISNULL(m.oException)
-			TRY
-				m.oException = THIS.DoReplace(m.cReplaceText, m.oReplaceCollection)
-			CATCH TO m.oException
-			ENDTRY
-			
-			THIS.ReplaceLog = THIS.DoReplaceLog(m.cReplaceText, m.oReplaceCollection)
+		m.oException = This.OpenFile(.T.)
 
-			THIS.CloseFile()
-		ENDIF
-	
-		SELECT (m.nSelect)
+		If Isnull(m.oException)
+			Try
+				m.oException = This.DoReplace(m.cReplaceText, m.oReplaceCollection)
+			Catch To m.oException
+			Endtry
 
-		RETURN m.oException
-	ENDFUNC
+			This.ReplaceLog = This.DoReplaceLog(m.cReplaceText, m.oReplaceCollection)
+
+			This.CloseFile()
+		Endif
+
+		Select (m.nSelect)
+
+		Return m.oException
+	Endfunc
 
 	* take the original text, determine the case,
 	* and apply it the new text
-	FUNCTION SetCasePreservation(cOriginalText, cReplacementText)
-		LOCAL i
-		LOCAL ch
-		LOCAL lLower
-		LOCAL lUpper
+	Function SetCasePreservation(cOriginalText, cReplacementText)
+		Local i
+		Local ch
+		Local lLower
+		Local lUpper
 
-		IF ISUPPER(LEFTC(m.cOriginalText, 1)) AND ISLOWER(SUBSTRC(m.cOriginalText, 2, 1))
+		If Isupper(Leftc(m.cOriginalText, 1)) And Islower(Substrc(m.cOriginalText, 2, 1))
 			* proper case
-			m.cReplacementText = PROPER(m.cReplacementText)
-		ELSE
+			m.cReplacementText = Proper(m.cReplacementText)
+		Else
 			m.lLower = .F.
 			m.lUpper = .F.
-			FOR m.i = 1 TO LENC(m.cOriginalText)
-				ch = SUBSTRC(m.cOriginalText, m.i, 1)
-				DO CASE
-				CASE BETWEEN(ch, 'A', 'Z')
-					m.lUpper = .T.
-				CASE BETWEEN(ch, 'a', 'z')
-					m.lLower = .T.
-				ENDCASE
-				
-				IF m.lLower AND m.lUpper
-					EXIT
-				ENDIF
-			ENDFOR
-			
-			DO CASE
-			CASE m.lLower AND !m.lUpper
-				m.cReplacementText = LOWER(m.cReplacementText)
-			CASE !m.lLower AND m.lUpper
-				m.cReplacementText = UPPER(m.cReplacementText)
-			ENDCASE
-		ENDIF
-				
-		RETURN m.cReplacementText
-	ENDFUNC
+			For m.i = 1 To Lenc(m.cOriginalText)
+				ch = Substrc(m.cOriginalText, m.i, 1)
+				Do Case
+					Case Between(ch, 'A', 'Z')
+						m.lUpper = .T.
+					Case Between(ch, 'a', 'z')
+						m.lLower = .T.
+				Endcase
+
+				If m.lLower And m.lUpper
+					Exit
+				Endif
+			Endfor
+
+			Do Case
+				Case m.lLower And !m.lUpper
+					m.cReplacementText = Lower(m.cReplacementText)
+				Case !m.lLower And m.lUpper
+					m.cReplacementText = Upper(m.cReplacementText)
+			Endcase
+		Endif
+
+		Return m.cReplacementText
+	Endfunc
 
 	* perform a replacement on text
 	*  NOTE: cOldCode contains the original text as it was when we original searched, but we don't use it here anymore
-	FUNCTION ReplaceText(cCodeBlock, nLineNo, nColPos, nMatchLen, cNewText, cOldCode)
-		LOCAL nLineCnt
-		LOCAL i
-		LOCAL lSuccess
-		LOCAL cOriginalText
-		LOCAL cReplacementText
-		LOCAL ARRAY aCodeList[1]
-		
-		IF ISNULL(cCodeBlock)
-			RETURN .NULL.
-		ENDIF
-	
+	Function ReplaceText(cCodeBlock, nLineNo, nColPos, nMatchLen, cNewText, cOldCode)
+		Local nLineCnt
+		Local i
+		Local lSuccess
+		Local cOriginalText
+		Local cReplacementText
+		Local Array aCodeList[1]
+
+		If Isnull(cCodeBlock)
+			Return .Null.
+		Endif
+
 		m.lSuccess = .F.
 
 		m.cReplacementText = m.cNewText
-		IF m.nLineNo == 0
-			IF THIS.PreserveCase
-				m.cOriginalText = SUBSTRC(m.cCodeBlock, m.nColPos, m.nMatchLen)
-				m.cNewText = THIS.SetCasePreservation(m.cOriginalText, m.cReplacementText)
-			ENDIF
-		
-			m.cCodeBlock = LEFTC(m.cCodeBlock, m.nColPos - 1) + m.cNewText + IIF(m.nColPos + m.nMatchLen > LENC(m.cCodeBlock), '', SUBSTRC(m.cCodeBlock, m.nColPos + m.nMatchLen))
+		If m.nLineNo == 0
+			If This.PreserveCase
+				m.cOriginalText = Substrc(m.cCodeBlock, m.nColPos, m.nMatchLen)
+				m.cNewText = This.SetCasePreservation(m.cOriginalText, m.cReplacementText)
+			Endif
+
+			m.cCodeBlock = Leftc(m.cCodeBlock, m.nColPos - 1) + m.cNewText + Iif(m.nColPos + m.nMatchLen > Lenc(m.cCodeBlock), '', Substrc(m.cCodeBlock, m.nColPos + m.nMatchLen))
 			m.lSuccess = .T.
-		ELSE
-			m.nLineCnt = ALINES(m.aCodeList, m.cCodeBlock, .F.)
-			IF m.nLineNo <= m.nLineCnt
-				IF THIS.PreserveCase
-					m.cOriginalText = SUBSTRC(m.aCodeList[m.nLineNo], m.nColPos, m.nMatchLen)
-					m.cNewText = THIS.SetCasePreservation(m.cOriginalText, m.cReplacementText)
-				ENDIF
+		Else
+			m.nLineCnt = Alines(m.aCodeList, m.cCodeBlock, .F.)
+			If m.nLineNo <= m.nLineCnt
+				If This.PreserveCase
+					m.cOriginalText = Substrc(m.aCodeList[m.nLineNo], m.nColPos, m.nMatchLen)
+					m.cNewText = This.SetCasePreservation(m.cOriginalText, m.cReplacementText)
+				Endif
 
-				m.aCodeList[m.nLineNo] = LEFTC(m.aCodeList[m.nLineNo], m.nColPos - 1) + m.cNewText + IIF(m.nColPos + m.nMatchLen > LENC(m.aCodeList[m.nLineNo]), '', SUBSTRC(m.aCodeList[m.nLineNo], m.nColPos + m.nMatchLen))
-				
+				m.aCodeList[m.nLineNo] = Leftc(m.aCodeList[m.nLineNo], m.nColPos - 1) + m.cNewText + Iif(m.nColPos + m.nMatchLen > Lenc(m.aCodeList[m.nLineNo]), '', Substrc(m.aCodeList[m.nLineNo], m.nColPos + m.nMatchLen))
+
 				m.cCodeBlock = ''
-				FOR m.i = 1 TO nLineCnt
-					m.cCodeBlock = m.cCodeBlock + IIF(m.i == 1, '', CHR(13) + CHR(10)) + m.aCodeList[m.i]
-				ENDFOR
-				
-				m.lSuccess = .T.
-			ENDIF
-		ENDIF
-			
-		IF !m.lSuccess
-			m.cCodeBlock = .NULL.
-		ENDIF
+				For m.i = 1 To nLineCnt
+					m.cCodeBlock = m.cCodeBlock + Iif(m.i == 1, '', Chr(13) + Chr(10)) + m.aCodeList[m.i]
+				Endfor
 
-		RETURN m.cCodeBlock
-	ENDFUNC
+				m.lSuccess = .T.
+			Endif
+		Endif
+
+		If !m.lSuccess
+			m.cCodeBlock = .Null.
+		Endif
+
+		Return m.cCodeBlock
+	Endfunc
 
 
 
 	* -- This is the meat of our find.  Searches through text or code
-	FUNCTION FindInCode(cTextBlock, cFindType, cClassName, cObjName, nSearchType, cRecordID, cUpdField, lNoReplace)
-		LOCAL i
-		LOCAL nSelect
-		LOCAL nLineCnt
-		LOCAL cProcName
-		LOCAL nProcLineNo
-		LOCAL cFirstChar
-		LOCAL nOffset
-		LOCAL lFound
-		LOCAL nCommentPos
-		LOCAL lExitLine
-		LOCAL nWordNum
-		LOCAL cFirstWord
-		LOCAL lComment
-		LOCAL nMatchCnt
-		LOCAL nLastLineNo
-		LOCAL nMatchIndex
-		LOCAL oMatch
-		LOCAL lMethodName
-		LOCAL lUseMemLines
-		LOCAL cCodeLine
-		LOCAL nMemoWidth
-		LOCAL lCommentAndContinue
-		LOCAL ARRAY aCodeList[1]
+	Function FindInCode(cTextBlock, cFindType, cClassName, cObjName, nSearchType, cRecordID, cUpdField, lNoReplace)
+		Local i
+		Local nSelect
+		Local nLineCnt
+		Local cProcName
+		Local nProcLineNo
+		Local cFirstChar
+		Local nOffset
+		Local lFound
+		Local nCommentPos
+		Local lExitLine
+		Local nWordNum
+		Local cFirstWord
+		Local lComment
+		Local nMatchCnt
+		Local nLastLineNo
+		Local nMatchIndex
+		Local oMatch
+		Local lMethodName
+		Local lUseMemLines
+		Local cCodeLine
+		Local nMemoWidth
+		Local lCommentAndContinue
+		Local cSpecialMethodName
+		Local Array aCodeList[1]
 
-		m.nMatchCnt = THIS.oSearchEngine.Execute(m.cTextBlock)
-		IF m.nMatchCnt <= 0
-			RETURN (m.nMatchCnt >= 0)
-		ENDIF
+		m.nMatchCnt = This.oSearchEngine.Execute(m.cTextBlock)
+		If m.nMatchCnt <= 0
+			Return (m.nMatchCnt >= 0)
+		Endif
 
-		IF VARTYPE(m.cClassName) <> 'C'
+		If Vartype(m.cClassName) <> 'C'
 			m.cClassName = ''
-		ENDIF
+		Endif
 
-		IF VARTYPE(m.cObjName) <> 'C'
+		If Vartype(m.cObjName) <> 'C'
 			m.cObjName = ''
-		ENDIF
+		Endif
 
-		IF m.nSearchType == SEARCHTYPE_METHOD  && search in method code of .vcx or .scx
+		If m.nSearchType == SEARCHTYPE_METHOD  && search in method code of .vcx or .scx
 			m.nOffset = -1
-		ELSE
+		Else
 			m.nOffset = 0
-		ENDIF
+		Endif
 
 		* this is the UNIQUEID field from a form or class library
-		IF VARTYPE(m.cRecordID) <> 'C'
+		If Vartype(m.cRecordID) <> 'C'
 			m.cRecordID = ''
-		ENDIF
-		IF VARTYPE(m.cUpdField) <> 'C'
+		Endif
+		If Vartype(m.cUpdField) <> 'C'
 			m.cUpdField = ''
-		ENDIF
+		Endif
 
 		m.cProcName   = ''
 		m.nProcLineNo = 0
 		m.lComment    = .F.
 		m.lCommentAndContinue = .F.
-		
-		m.nSelect = SELECT()
+
+		m.nSelect = Select()
 
 		nMatchIndex    = 1
 
@@ -830,529 +839,539 @@ DEFINE CLASS RefSearch AS Custom
 		* ALINES should be faster, but we can't use that if
 		* there are more than 65k lines in the code block
 		m.lUseMemLines = .F.
-		TRY
-			m.nLineCnt = ALINES(aCodeList, m.cTextBlock, .F.)
-		CATCH
+		Try
+			m.nLineCnt = Alines(aCodeList, m.cTextBlock, .F.)
+		Catch
 			m.lUseMemLines = .T.
-		ENDTRY
-		
-		IF m.lUseMemLines
-			m.nMemoWidth = SET("MEMOWIDTH")
-			SET MEMOWIDTH TO 8192
-			m.nLineCnt = MEMLINES(m.cTextBlock)
-			_MLINE = 0
-		ENDIF
+		Endtry
+
+		If m.lUseMemLines
+			m.nMemoWidth = Set("MEMOWIDTH")
+			Set Memowidth To 8192
+			m.nLineCnt = Memlines(m.cTextBlock)
+			_Mline = 0
+		Endif
 
 
-		m.nLastLineNo  = MIN(THIS.oSearchEngine.oMatches(m.nMatchCnt).MatchLineNo, m.nLineCnt)
-		FOR m.i = 1 TO m.nLastLineNo
-			IF m.lUseMemLines
-				m.cCodeLine = MLINE(m.cTextBlock, 1, _MLINE)
-			ELSE
+		m.nLastLineNo  = Min(This.oSearchEngine.oMatches(m.nMatchCnt).MatchLineNo, m.nLineCnt)
+		For m.i = 1 To m.nLastLineNo
+			If m.lUseMemLines
+				m.cCodeLine = Mline(m.cTextBlock, 1, _Mline)
+			Else
 				m.cCodeLine = aCodeList[m.i]
-			ENDIF
+			Endif
 
 			m.lMethodName = .F.
-		
+
 			* get first word
 			m.nWordNum = 1
-			m.cFirstWord = UPPER(GETWORDNUM(m.cCodeLine, m.nWordNum, WORD_DELIMITERS))
+			m.cFirstWord = Upper(Getwordnum(m.cCodeLine, m.nWordNum, WORD_DELIMITERS))
 
-			IF m.lCommentAndContinue
+			If m.lCommentAndContinue
 				* since the last line was a comment line and also
 				* was a continuation line, then this is a comment line
 				m.lComment = .T.
-			ELSE
-				m.lComment = m.cFirstWord = '*' OR (m.cFirstWord = ("&" + "&")) OR m.cFirstWord == "NOTE"
-			ENDIF
+			Else
+				m.lComment = m.cFirstWord = '*' Or (m.cFirstWord = ("&" + "&")) Or m.cFirstWord == "NOTE"
+			Endif
 
-
-			IF (m.lComment AND THIS.Comments == COMMENTS_EXCLUDE)
+			cSpecialMethodName = ''
+			If (m.lComment And This.Comments == COMMENTS_EXCLUDE)
 				m.nProcLineNo = m.nProcLineNo + 1
 
 				* if this line was a comment line and also
 				* was a continuation line, then the next line
 				* is also a comment
-				m.lCommentAndContinue = m.lComment AND RIGHTC(RTRIM(m.cCodeLine), 1) == ';'
+				m.lCommentAndContinue = m.lComment And Rightc(Rtrim(m.cCodeLine), 1) == ';'
 
-				LOOP
-			ENDIF
+				Loop
+			Endif
 
-			IF !m.lComment AND LENC(m.cFirstWord) >= 4 AND INLIST(m.cFirstWord, 'E', 'H', 'P', 'F', 'L', 'D')
-				IF "PROTECTED" = m.cFirstWord OR "HIDDEN" = m.cFirstWord
+			If !m.lComment And Lenc(m.cFirstWord) >= 4 And Inlist(m.cFirstWord, 'E', 'H', 'P', 'F', 'L', 'D')
+				If "PROTECTED" = m.cFirstWord Or "HIDDEN" = m.cFirstWord
 					m.nWordNum = m.nWordNum + 1
-					m.cFirstWord = UPPER(GETWORDNUM(m.cCodeLine, m.nWordNum, WORD_DELIMITERS))
-				ENDIF
+					m.cFirstWord = Upper(Getwordnum(m.cCodeLine, m.nWordNum, WORD_DELIMITERS))
+				Endif
 
-				DO CASE
-				CASE "PROCEDURE" = m.cFirstWord
-					m.cProcName = GETWORDNUM(m.cCodeLine, m.nWordNum + 1, METHOD_DELIMITERS)
-					m.nProcLineNo = 0
-					m.lMethodName = .T.
-					
-				CASE "FUNCTION" = cFirstWord
-					m.cProcName = GETWORDNUM(m.cCodeLine, m.nWordNum + 1, METHOD_DELIMITERS)
-					m.nProcLineNo = 0
+				Do Case
+					Case "PROCEDURE" = m.cFirstWord
+						m.cProcName = Getwordnum(m.cCodeLine, m.nWordNum + 1, METHOD_DELIMITERS)
+						m.nProcLineNo = 0
+						m.lMethodName = .T.
+						
+						If m.nSearchType == SEARCHTYPE_METHOD  && search in method code of .vcx or .scx
+							cSpecialMethodName = "." + METHOD_LOC
+						Else
+							cSpecialMethodName = "." + PROCEDURE_LOC
+						Endif
 
-				CASE "ENDFUNC" = m.cFirstWord
-					m.cProcName = ''
-					m.nProcLineNo = 0
+					Case "FUNCTION" = cFirstWord
+						m.cProcName = Getwordnum(m.cCodeLine, m.nWordNum + 1, METHOD_DELIMITERS)
+						m.nProcLineNo = 0
+						cSpecialMethodName = "." + FUNCTION_LOC
 
-				CASE "ENDPROC" = m.cFirstWord
-					m.cProcName = ''
-					m.nProcLineNo = 0
-
-				CASE "DEFINE" = m.cFirstWord
-					m.cSecondWord = UPPER(GETWORDNUM(m.cCodeLine, m.nWordNum + 1, WORD_DELIMITERS))
-					IF LENC(m.cSecondWord) >= 4 AND "CLASS" = m.cSecondWord
-						m.cClassName = GETWORDNUM(m.cCodeLine, m.nWordNum + 2, WORD_DELIMITERS)
+					Case "ENDFUNC" = m.cFirstWord
 						m.cProcName = ''
 						m.nProcLineNo = 0
-					ENDIF
 
-				CASE "ENDDEFINE" = m.cFirstWord
-					m.cClassName  = ''
-					m.cProcName   = ''
-					m.nProcLineNo = 0
+					Case "ENDPROC" = m.cFirstWord
+						m.cProcName = ''
+						m.nProcLineNo = 0
 
-				ENDCASE
-			ENDIF
+					Case "DEFINE" = m.cFirstWord
+						m.cSecondWord = Upper(Getwordnum(m.cCodeLine, m.nWordNum + 1, WORD_DELIMITERS))
+						If Lenc(m.cSecondWord) >= 4 And "CLASS" = m.cSecondWord
+							m.cClassName = Getwordnum(m.cCodeLine, m.nWordNum + 2, WORD_DELIMITERS)
+							m.cProcName = ''
+							m.nProcLineNo = 0
+						Endif
+
+					Case "ENDDEFINE" = m.cFirstWord
+						m.cClassName  = ''
+						m.cProcName   = ''
+						m.nProcLineNo = 0
+
+				Endcase
+			Endif
 
 			m.nProcLineNo = m.nProcLineNo + 1
 
-			IF THIS.Comments == COMMENTS_EXCLUDE OR THIS.Comments == COMMENTS_ONLY
-				m.nCommentPos = AT_C('&' + '&', m.cCodeLine)
+			If This.Comments == COMMENTS_EXCLUDE Or This.Comments == COMMENTS_ONLY
+				m.nCommentPos = At_c('&' + '&', m.cCodeLine)
 
 				* if this line was a comment line and also
 				* was a continuation line, then the next line
 				* is also a comment
-				m.lCommentAndContinue = m.nCommentPos > 0 AND RIGHTC(RTRIM(m.cCodeLine), 1) == ';'
-			ELSE
+				m.lCommentAndContinue = m.nCommentPos > 0 And Rightc(Rtrim(m.cCodeLine), 1) == ';'
+			Else
 				m.nCommentPos = 0
-			ENDIF
+			Endif
 
 
-			FOR m.j = m.nMatchIndex TO m.nMatchCnt
-				oMatch = THIS.oSearchEngine.oMatches(m.j)
-	
-				IF oMatch.MatchLineNo == m.i
-					IF (THIS.Comments == COMMENTS_EXCLUDE AND m.nCommentPos > 0 AND oMatch.MatchPos >= m.nCommentPos)
-						EXIT
-					ENDIF
+			For m.j = m.nMatchIndex To m.nMatchCnt
+				oMatch = This.oSearchEngine.oMatches(m.j)
 
-					IF THIS.Comments <> COMMENTS_ONLY OR m.lComment OR (m.nCommentPos > 0 AND oMatch.MatchPos >= m.nCommentPos)
-						THIS.AddMatch( ;
-						  m.cFindType, ;
-						  m.cClassName, ;
-						  m.cObjName + IIF(EMPTY(m.cObjName) OR EMPTY(m.cProcName), '', '.') + m.cProcName, ;
-						  IIF(nSearchType == SEARCHTYPE_EXPR, 0, m.nProcLineNo + m.nOffset), ;
-						  IIF(nSearchType == SEARCHTYPE_EXPR, 0, m.i), ;
-						  oMatch.MatchPos, ;
-						  oMatch.MatchLen, ;
-						  m.cCodeLine, ;
-						  m.cRecordID, ;
-						  IIF(m.lMethodName, "METHODNAME", m.cUpdField), ;
-						  IIF(m.lMethodName, .T., m.lNoReplace) ;
-						 )
-					ENDIF
+				If oMatch.MatchLineNo == m.i
+					If (This.Comments == COMMENTS_EXCLUDE And m.nCommentPos > 0 And oMatch.MatchPos >= m.nCommentPos)
+						Exit
+					Endif
 
-				ELSE
-					IF oMatch.MatchLineNo > m.i
-						EXIT
-					ENDIF
-				ENDIF
+					If This.Comments <> COMMENTS_ONLY Or m.lComment Or (m.nCommentPos > 0 And oMatch.MatchPos >= m.nCommentPos)
+						This.AddMatch( ;
+							m.cFindType, ;
+							m.cClassName, ;
+							m.cObjName + Iif(Empty(m.cObjName) Or Empty(m.cProcName), '', '.') + m.cProcName + cSpecialMethodName, ;
+							IIF(nSearchType == SEARCHTYPE_EXPR, 0, m.nProcLineNo + m.nOffset), ;
+							IIF(nSearchType == SEARCHTYPE_EXPR, 0, m.i), ;
+							oMatch.MatchPos, ;
+							oMatch.MatchLen, ;
+							m.cCodeLine, ;
+							m.cRecordID, ;
+							IIF(m.lMethodName, "METHODNAME", m.cUpdField), ;
+							oMatch.NoReplace Or Iif(m.lMethodName, .T., m.lNoReplace) ;
+							)
+					Endif
+
+				Else
+					If oMatch.MatchLineNo > m.i
+						Exit
+					Endif
+				Endif
 
 				m.nMatchIndex = m.nMatchIndex + 1
-			ENDFOR
+			Endfor
 
-		ENDFOR
+		Endfor
 
-		IF m.lUseMemLines
-			SET MEMOWIDTH TO (m.nMemoWidth)
-		ENDIF
-		
-		SELECT (m.nSelect)
-	ENDFUNC
+		If m.lUseMemLines
+			Set Memowidth To (m.nMemoWidth)
+		Endif
+
+		Select (m.nSelect)
+	Endfunc
 
 	* -- This searches a text block, assuming it's NOT code so there's
 	* -- no reason to locate comments, entering & exiting procedures, etc
-	FUNCTION FindInText(cTextBlock, cFindType, cClassName, cObjName, nSearchType, cRecordID, cUpdField, lNoReplace)
-		LOCAL i
-		LOCAL nSelect
-		LOCAL nLineCnt
-		LOCAL lUseMemLines
-		LOCAL nMemoWidth
-		LOCAL ARRAY aCodeList[1]
+	Function FindInText(cTextBlock, cFindType, cClassName, cObjName, nSearchType, cRecordID, cUpdField, lNoReplace)
+		Local i
+		Local nSelect
+		Local nLineCnt
+		Local lUseMemLines
+		Local nMemoWidth
+		Local Array aCodeList[1]
 
-		m.nSelect = SELECT()
+		m.nSelect = Select()
 
-		IF VARTYPE(m.cClassName) <> 'C'
+		If Vartype(m.cClassName) <> 'C'
 			m.cClassName = ''
-		ENDIF
+		Endif
 
-		IF VARTYPE(m.cObjName) <> 'C'
+		If Vartype(m.cObjName) <> 'C'
 			m.cObjName = ''
-		ENDIF
+		Endif
 
 		* this is the UNIQUEID field from a form or class library
-		IF VARTYPE(m.cRecordID) <> 'C'
+		If Vartype(m.cRecordID) <> 'C'
 			m.cRecordID = ''
-		ENDIF
-		IF VARTYPE(m.cUpdField) <> 'C'
+		Endif
+		If Vartype(m.cUpdField) <> 'C'
 			m.cUpdField = ''
-		ENDIF
+		Endif
 
-		m.nMatchCnt = THIS.oSearchEngine.Execute(m.cTextBlock)
-		IF m.nMatchCnt > 0
+		m.nMatchCnt = This.oSearchEngine.Execute(m.cTextBlock)
+		If m.nMatchCnt > 0
 			* ALINES should be faster, but we can't use that if
 			* there are more than 65k lines in the code block
 			m.lUseMemLines = .F.
-			TRY
-				m.nLineCnt = ALINES(aCodeList, m.cTextBlock, .F.)
-			CATCH
+			Try
+				m.nLineCnt = Alines(aCodeList, m.cTextBlock, .F.)
+			Catch
 				m.lUseMemLines = .T.
-			ENDTRY
-			
-			IF m.lUseMemLines
-				m.nMemoWidth = SET("MEMOWIDTH")
-				SET MEMOWIDTH TO 8192
-				m.nLineCnt = MEMLINES(m.cTextBlock)
-			ENDIF
+			Endtry
 
-			FOR EACH oMatch IN THIS.oSearchEngine.oMatches
-				THIS.AddMatch( ;
-				  m.cFindType, ;
-				  m.cClassName, ;
-				  m.cObjName, ;
-				  oMatch.MatchLineNo, ;
-				  oMatch.MatchLineNo, ;
-				  oMatch.MatchPos, ;
-				  oMatch.MatchLen, ;
-				  IIF(m.lUseMemLines, MLINE(m.cTextBlock, oMatch.MatchLineNo), aCodeList[oMatch.MatchLineNo]), ;
-				  m.cRecordID, ;
-				  m.cUpdField, ;
-				  m.lNoReplace ;
-				 )
-				
-			ENDFOR
-		ENDIF
+			If m.lUseMemLines
+				m.nMemoWidth = Set("MEMOWIDTH")
+				Set Memowidth To 8192
+				m.nLineCnt = Memlines(m.cTextBlock)
+			Endif
 
-		IF m.lUseMemLines
-			SET MEMOWIDTH TO (m.nMemoWidth)
-		ENDIF
+			For Each oMatch In This.oSearchEngine.oMatches
+				This.AddMatch( ;
+					m.cFindType, ;
+					m.cClassName, ;
+					m.cObjName, ;
+					oMatch.MatchLineNo, ;
+					oMatch.MatchLineNo, ;
+					oMatch.MatchPos, ;
+					oMatch.MatchLen, ;
+					IIF(m.lUseMemLines, Mline(m.cTextBlock, oMatch.MatchLineNo), aCodeList[oMatch.MatchLineNo]), ;
+					m.cRecordID, ;
+					m.cUpdField, ;
+					oMatch.NoReplace Or m.lNoReplace ;
+					)
 
-		SELECT (m.nSelect)		
-	ENDFUNC
+			Endfor
+		Endif
+
+		If m.lUseMemLines
+			Set Memowidth To (m.nMemoWidth)
+		Endif
+
+		Select (m.nSelect)
+	Endfunc
 
 	* perform search on a single line of text (no line # recorded)
-	FUNCTION FindInLine(cTextBlock, cFindType, cClassName, cObjName, nSearchType, cRecordID, cUpdField, lNoReplace, cAbstract, nColOffset, nLineNo)
-		LOCAL nSelect
-		LOCAL nMatchLen
-		LOCAL nMatchCnt
+	Function FindInLine(cTextBlock, cFindType, cClassName, cObjName, nSearchType, cRecordID, cUpdField, lNoReplace, cAbstract, nColOffset, nLineNo)
+		Local nSelect
+		Local nMatchLen
+		Local nMatchCnt
 
-		m.nSelect = SELECT()
+		m.nSelect = Select()
 
-		IF VARTYPE(m.cClassName) <> 'C'
+		If Vartype(m.cClassName) <> 'C'
 			m.cClassName = ''
-		ENDIF
+		Endif
 
-		IF VARTYPE(m.cObjName) <> 'C'
+		If Vartype(m.cObjName) <> 'C'
 			m.cObjName = ''
-		ENDIF
+		Endif
 
 		* this is the UNIQUEID field from a form or class library
-		IF VARTYPE(m.cRecordID) <> 'C'
+		If Vartype(m.cRecordID) <> 'C'
 			m.cRecordID = ''
-		ENDIF
-		IF VARTYPE(m.cUpdField) <> 'C'
+		Endif
+		If Vartype(m.cUpdField) <> 'C'
 			m.cUpdField = ''
-		ENDIF
-		IF VARTYPE(m.nColOffset) <> 'N'
+		Endif
+		If Vartype(m.nColOffset) <> 'N'
 			m.nColOffset = 0
-		ENDIF
-		IF VARTYPE(m.nLineNo) <> 'N'
+		Endif
+		If Vartype(m.nLineNo) <> 'N'
 			m.nLineNo = 0
-		ENDIF
+		Endif
 
-		THIS.RefID = SYS(2015)
+		This.RefID = Sys(2015)
 
 
 		* see if reference occurs on this line
-		m.nMatchCnt = THIS.oSearchEngine.Execute(m.cTextBlock)
-		IF m.nMatchCnt > 0
+		m.nMatchCnt = This.oSearchEngine.Execute(m.cTextBlock)
+		If m.nMatchCnt > 0
 
-			FOR EACH oMatch IN THIS.oSearchEngine.oMatches
-				THIS.AddMatch( ;
-				  m.cFindType, ;
-				  m.cClassName, ;
-				  m.cObjName, ;
-				  oMatch.MatchLineNo, ;
-				  m.nLineNo, ;
-				  oMatch.MatchPos + m.nColOffset, ;
-				  oMatch.MatchLen, ;
-				  IIF(VARTYPE(m.cAbstract) == 'C', m.cAbstract, m.cTextBlock), ;
-				  m.cRecordID, ;
-				  m.cUpdField, ;
-				  m.lNoReplace ;
-				 )
+			For Each oMatch In This.oSearchEngine.oMatches
+				This.AddMatch( ;
+					m.cFindType, ;
+					m.cClassName, ;
+					m.cObjName, ;
+					oMatch.MatchLineNo, ;
+					m.nLineNo, ;
+					oMatch.MatchPos + m.nColOffset, ;
+					oMatch.MatchLen, ;
+					IIF(Vartype(m.cAbstract) == 'C', m.cAbstract, m.cTextBlock), ;
+					m.cRecordID, ;
+					m.cUpdField, ;
+					oMatch.NoReplace Or m.lNoReplace ;
+					)
 
-			ENDFOR
-		ENDIF
-		
-		SELECT (m.nSelect)
-		
-		RETURN m.nMatchCnt >= 0 && -1 returned on error
-	ENDFUNC
+			Endfor
+		Endif
+
+		Select (m.nSelect)
+
+		Return m.nMatchCnt >= 0 && -1 returned on error
+	Endfunc
 
 
 	* -- This searches a property list
-	FUNCTION FindInProperties(cTextBlock, cPEMList, cClassName, cObjName, nSearchType, cRecordID)
-		LOCAL i
-		LOCAL j
-		LOCAL nSelect
-		LOCAL nLineCnt
-		LOCAL nMatchLen
-		LOCAL cPropertyName
-		LOCAL nEqualPos
-		LOCAL cPropertyValue
-		LOCAL lSuccess
-		LOCAL nPEMCnt
-		LOCAL cProperty
-		LOCAL nLen
-		LOCAL nPos
-		LOCAL ARRAY aCodeList[1]
-		LOCAL ARRAY aPEMList[1]
+	Function FindInProperties(cTextBlock, cPEMList, cClassName, cObjName, nSearchType, cRecordID)
+		Local i
+		Local j
+		Local nSelect
+		Local nLineCnt
+		Local nMatchLen
+		Local cPropertyName
+		Local nEqualPos
+		Local cPropertyValue
+		Local lSuccess
+		Local nPEMCnt
+		Local cProperty
+		Local nLen
+		Local nPos
+		Local Array aCodeList[1]
+		Local Array aPEMList[1]
 
-		IF (THIS.Comments == COMMENTS_ONLY)
-			RETURN
-		ENDIF
+		If (This.Comments == COMMENTS_ONLY)
+			Return
+		Endif
 
-		m.nSelect = SELECT()
+		m.nSelect = Select()
 
 		m.lSuccess = .T.
 
-		IF VARTYPE(m.cClassName) <> 'C'
+		If Vartype(m.cClassName) <> 'C'
 			m.cClassName = ''
-		ENDIF
+		Endif
 
-		IF VARTYPE(m.cObjName) <> 'C'
+		If Vartype(m.cObjName) <> 'C'
 			m.cObjName = ''
-		ENDIF
+		Endif
 
 		* this is the UNIQUEID field from a form or class library
-		IF VARTYPE(m.cRecordID) <> 'C'
+		If Vartype(m.cRecordID) <> 'C'
 			m.cRecordID = ''
-		ENDIF
-		
-		IF EMPTY(m.cPEMList)
+		Endif
+
+		If Empty(m.cPEMList)
 			m.nPEMCnt = 0
-		ELSE
-			m.nPEMCnt = ALINES(aPEMList, m.cPEMList, .T.)
-		ENDIF
+		Else
+			m.nPEMCnt = Alines(aPEMList, m.cPEMList, .T.)
+		Endif
 
 		m.nLineCnt = 0
-		m.cProperty = RTRIM(GETWORDNUM(m.cTextBlock, 1, CHR(10)), 0, CHR(13))
-		DO WHILE !EMPTY(m.cProperty)
-			m.nEqualPos = AT_C(' = ', m.cProperty)
-			IF m.nEqualPos > 3
-				IF SUBSTR(m.cProperty, m.nEqualPos + 3, 517) == THIS.cExtendedPropertyText
+		m.cProperty = Rtrim(Getwordnum(m.cTextBlock, 1, Chr(10)), 0, Chr(13))
+		Do While !Empty(m.cProperty)
+			m.nEqualPos = At_c(' = ', m.cProperty)
+			If m.nEqualPos > 3
+				If Substr(m.cProperty, m.nEqualPos + 3, 517) == This.cExtendedPropertyText
 					* we have an extended propererty
-					m.cPropertyName = LEFTC(m.cProperty, m.nEqualPos - 1)
-					
-					m.nLen = VAL(SUBSTR(m.cProperty, m.nEqualPos + 3 + 517, 8))
+					m.cPropertyName = Leftc(m.cProperty, m.nEqualPos - 1)
 
-					m.cProperty = m.cPropertyName + " = " + SUBSTR(m.cProperty, m.nEqualPos + 3 + 517 + 8, nLen)
-					m.cTextBlock = SUBSTR(m.cTextBlock, m.nEqualPos + 5 + 517 + 8 + nLen)
-				ELSE
-					m.nPos = AT(CHR(10), m.cTextBlock)
-					IF m.nPos = 0 
-						m.nPos = AT(CHR(13), m.cTextBlock)
-					ENDIF
-					IF m.nPos > 0
-						m.cTextBlock = SUBSTR(m.cTextBlock, m.nPos + 1)
-					ELSE
+					m.nLen = Val(Substr(m.cProperty, m.nEqualPos + 3 + 517, 8))
+
+					m.cProperty = m.cPropertyName + " = " + Substr(m.cProperty, m.nEqualPos + 3 + 517 + 8, nLen)
+					m.cTextBlock = Substr(m.cTextBlock, m.nEqualPos + 5 + 517 + 8 + nLen)
+				Else
+					m.nPos = At(Chr(10), m.cTextBlock)
+					If m.nPos = 0
+						m.nPos = At(Chr(13), m.cTextBlock)
+					Endif
+					If m.nPos > 0
+						m.cTextBlock = Substr(m.cTextBlock, m.nPos + 1)
+					Else
 						m.cTextBlock = ''
-					ENDIF
-				ENDIF
-				
-				m.nLineCnt = m.nLineCnt + 1
-				DIMENSION aCodeList[m.nLineCnt]
-				aCodeList[m.nLineCnt] = m.cProperty
-				
-				m.cProperty = RTRIM(GETWORDNUM(m.cTextBlock, 1, CHR(10)), 0, CHR(13))
-			ELSE
-				m.cProperty = ''
-			ENDIF
-		ENDDO
-		
-		FOR m.i = 1 TO m.nLineCnt
-			* First see if we have a match for PropertName = Propertyvalue (e.g. Width = 300)
-			m.nEqualPos = AT_C(' = ', aCodeList[m.i])
-			IF m.nEqualPos > 3
-				m.cPropertyName = LEFTC(aCodeList[m.i], m.nEqualPos - 1)
+					Endif
+				Endif
 
-				* if the property name occurs here, zero it out from the PEMList
-				* so we don't find it again
-				FOR m.j = 1 TO m.nPEMCnt
-					* this won't find method names because they start with '*'
-					IF aPEMList[m.j] == m.cPropertyName
-						aPEMList[m.j] = ''
-					ENDIF
-				ENDFOR
+				m.nLineCnt = m.nLineCnt + 1
+				Dimension aCodeList[m.nLineCnt]
+				aCodeList[m.nLineCnt] = m.cProperty
+
+				m.cProperty = Rtrim(Getwordnum(m.cTextBlock, 1, Chr(10)), 0, Chr(13))
+			Else
+				m.cProperty = ''
+			Endif
+		Enddo
+
+		For m.i = 1 To m.nLineCnt
+			* First see if we have a match for PropertName = Propertyvalue (e.g. Width = 300)
+			m.nEqualPos = At_c(' = ', aCodeList[m.i])
+			If m.nEqualPos > 3
+				m.cPropertyName = Leftc(aCodeList[m.i], m.nEqualPos - 1)
+
+				*** JRN 2010-03-17 : following removed ... I'd LIKE to see it again!
+				*!*	* if the property name occurs here, zero it out from the PEMList
+				*!*	* so we don't find it again
+				*!*	FOR m.j = 1 TO m.nPEMCnt
+				*!*		* this won't find method names because they start with '*'
+				*!*		IF aPEMList[m.j] == m.cPropertyName
+				*!*			aPEMList[m.j] = ''
+				*!*		ENDIF
+				*!*	ENDFOR
 
 				m.cProperty = aCodeList[m.i]
-				m.lSuccess = THIS.FindInLine(m.cProperty, FINDTYPE_PROPERTYVALUE, m.cClassName, m.cObjName, SEARCHTYPE_NORMAL, m.cRecordID, "PROPERTYNAME", .T., m.cProperty,, m.i)
-				IF !m.lSuccess
+				*** JRN 2010-03-21 :
+				* m.lSuccess = This.FindInLine(m.cProperty, FINDTYPE_PROPERTYVALUE, m.cClassName, m.cObjName, SEARCHTYPE_NORMAL, m.cRecordID, "PROPERTYNAME", .T., m.cProperty,, m.i)
+				m.lSuccess = This.FindInLine(m.cProperty, FINDTYPE_PROPERTYVALUE, m.cClassName, cObjName + Iif(Empty(cObjName), '', '.') + PROPERTY_LOC, SEARCHTYPE_NORMAL, m.cRecordID, "PROPERTYNAME", .T., '.' + m.cProperty,, m.i)
+				If !m.lSuccess
 					* see if reference occurs in the value portion of the property name
-					m.cPropertyValue = SUBSTRC(m.cProperty, m.nEqualPos + 3)
+					m.cPropertyValue = Substrc(m.cProperty, m.nEqualPos + 3)
 
-					m.lSuccess = THIS.FindInLine(m.cPropertyName, FINDTYPE_PROPERTYNAME, m.cClassName, m.cObjName, SEARCHTYPE_NORMAL, m.cRecordID, "PROPERTYNAME", .T., m.cProperty,, m.i) OR m.lSuccess
-					m.lSuccess = THIS.FindInLine(m.cPropertyValue, FINDTYPE_PROPERTYVALUE, m.cClassName, m.cObjName + IIF(EMPTY(m.cObjName) OR EMPTY(m.cPropertyName), '', '.') + m.cPropertyName, SEARCHTYPE_NORMAL, m.cRecordID, "PROPERTYVALUE", .T., m.cProperty, m.nEqualPos + 2, m.i) OR m.lSuccess
-				ENDIF
-			ENDIF
-		ENDFOR
+					m.lSuccess = This.FindInLine(m.cPropertyName, FINDTYPE_PROPERTYNAME, m.cClassName, cObjName + Iif(Empty(cObjName), '', '.') + PROPERTYNAME_LOC, SEARCHTYPE_NORMAL, m.cRecordID, "PROPERTYNAME", .T., m.cProperty,, m.i) Or m.lSuccess
+					m.lSuccess = This.FindInLine(m.cPropertyValue, FINDTYPE_PROPERTYVALUE, m.cClassName, m.cObjName + Iif(Empty(m.cObjName) Or Empty(m.cPropertyName), '', '.') + m.cPropertyName, SEARCHTYPE_NORMAL, m.cRecordID, "PROPERTYVALUE", .T., m.cProperty, m.nEqualPos + 2, m.i) Or m.lSuccess
+				Endif
+			Endif
+		Endfor
 
 		* see if match occurs in a defined property that has a default value
 		* (if it has a default value, it won't show up in the Properties field)
-		FOR m.i = 1 TO m.nPEMCnt
-			IF !EMPTY(aPEMList[m.i]) AND LEFTC(aPEMList[m.i], 1) <> '*'
-				m.lSuccess = THIS.FindInLine(aPEMList[m.i], FINDTYPE_PROPERTYNAME, m.cClassName, m.cObjName, SEARCHTYPE_NORMAL, m.cRecordID, "PROPERTYNAME", .T., aPEMList[m.i],, m.i) OR m.lSuccess
-			ENDIF
-		ENDFOR
+		For m.i = 1 To m.nPEMCnt
+			If !Empty(aPEMList[m.i]) And Leftc(aPEMList[m.i], 1) <> '*'
+				m.lSuccess = This.FindInLine(aPEMList[m.i], FINDTYPE_PROPERTYNAME, m.cClassName, cObjName + Iif(Empty(cObjName), '', '.') + PROPERTYNAME_LOC, SEARCHTYPE_NORMAL, m.cRecordID, "PROPERTYNAME", .T., aPEMList[m.i],, m.i) Or m.lSuccess
+			Endif
+		Endfor
 
 
-		SELECT (m.nSelect)		
-		
-		RETURN m.lSuccess
-	ENDFUNC
+		Select (m.nSelect)
+
+		Return m.lSuccess
+	Endfunc
 
 	* find any defined Methods
-	FUNCTION FindDefinedMethods(cTextBlock, cClassName, cObjName, nSearchType, cRecordID)
-		LOCAL i
-		LOCAL nLineCnt
-		LOCAL nMatchLen
-		LOCAL cPEMName
-		LOCAL lSuccess
-		LOCAL ARRAY aCodeList[1]
+	Function FindDefinedMethods(cTextBlock, cClassName, cObjName, nSearchType, cRecordID)
+		Local i
+		Local nLineCnt
+		Local nMatchLen
+		Local cPEMName
+		Local lSuccess
+		Local Array aCodeList[1]
 
-		IF (THIS.Comments == COMMENTS_ONLY)
-			RETURN
-		ENDIF
+		If (This.Comments == COMMENTS_ONLY)
+			Return
+		Endif
 
 		m.lSuccess = .T.
 
-		IF VARTYPE(m.cClassName) <> 'C'
+		If Vartype(m.cClassName) <> 'C'
 			m.cClassName = ''
-		ENDIF
+		Endif
 
-		IF VARTYPE(m.cObjName) <> 'C'
+		If Vartype(m.cObjName) <> 'C'
 			m.cObjName = ''
-		ENDIF
+		Endif
 
 		* this is the UNIQUEID field from a form or class library
-		IF VARTYPE(m.cRecordID) <> 'C'
+		If Vartype(m.cRecordID) <> 'C'
 			m.cRecordID = ''
-		ENDIF
+		Endif
 
-		m.nLineCnt = ALINES(aCodeList, m.cTextBlock, .F.)
-		FOR m.i = 1 TO m.nLineCnt
-			IF LEFTC(aCodeList[m.i], 1) == '*' && methods begin with '*' in reserved3 field
-				m.cPEMName = SUBSTRC(aCodeList[m.i], 2)
-				m.lSuccess = THIS.FindInLine(m.cPEMName, FINDTYPE_PROPERTYNAME, m.cClassName, m.cObjName, SEARCHTYPE_NORMAL, m.cRecordID, "METHOD", .T., m.cPEMName,, m.i)
-			ENDIF
-		ENDFOR
-		
-		RETURN m.lSuccess
-	ENDFUNC
+		m.nLineCnt = Alines(aCodeList, m.cTextBlock, .F.)
+		For m.i = 1 To m.nLineCnt
+			If Leftc(aCodeList[m.i], 1) == '*' && methods begin with '*' in reserved3 field
+				m.cPEMName = Substrc(aCodeList[m.i], 2)
+				m.lSuccess = This.FindInLine(m.cPEMName, FINDTYPE_METHODNAME, m.cClassName, cObjName + Iif(Empty(cObjName), '', '.') + METHODNAME_LOC, SEARCHTYPE_NORMAL, m.cRecordID, "METHOD", .T., m.cPEMName,, m.i)
+			Endif
+		Endfor
 
-	FUNCTION ParseLine(cLine, aTokens, nTokenCnt)
-		LOCAL cEndQuote
-		LOCAL cWord
-		LOCAL cLastCh
-		LOCAL ch
-		LOCAL nTerminal
-		LOCAL lInQuote
-		LOCAL lInSymbol
-		LOCAL nTokenCnt
-		LOCAL nLen
-		LOCAL i
+		Return m.lSuccess
+	Endfunc
+
+	Function ParseLine(cLine, aTokens, nTokenCnt)
+		Local cEndQuote
+		Local cWord
+		Local cLastCh
+		Local ch
+		Local nTerminal
+		Local lInQuote
+		Local lInSymbol
+		Local nTokenCnt
+		Local nLen
+		Local i
 
 
 		nTerminal = 0
 		cWord     = ''
-		nLen      = LENC(cLine)
+		nLen      = Lenc(cLine)
 		cLastCh   = ''
-		FOR i = 1 TO nLen
-			ch = SUBSTRC(cLine, i, 1)
+		For i = 1 To nLen
+			ch = Substrc(cLine, i, 1)
 
-			IF lInQuote
-				IF ch == cEndQuote
+			If lInQuote
+				If ch == cEndQuote
 					nTerminal = 1
 					cEndQuote = ''
 					cWord = cWord + ch
 					ch = ''
 					lInQuote = .F.
-				ELSE
+				Else
 					nTerminal = 0
-				ENDIF
-			ELSE
-				IF ch == '_' OR IsAlpha(ch) OR ch == '.' OR ch $ "0123456789"
-					IF lInSymbol
+				Endif
+			Else
+				If ch == '_' Or Isalpha(ch) Or ch == '.' Or ch $ "0123456789"
+					If lInSymbol
 						nTerminal = 0
-					ELSE
+					Else
 						lInSymbol = .T.
 						nTerminal = 1
-					ENDIF
-				ELSE
+					Endif
+				Else
 					lInSymbol = .F.
 
-					DO CASE
-					CASE ch == ' ' OR ch == TAB
-						nTerminal = 2
+					Do Case
+						Case ch == ' ' Or ch == Tab
+							nTerminal = 2
 
-					CASE ch == '"' OR ch == '[' OR ch == "'"
-						nTerminal = 1
-						cEndQuote = IIF(ch == '[', ']', ch)
-						lInQuote  = .T.
+						Case ch == '"' Or ch == '[' Or ch == "'"
+							nTerminal = 1
+							cEndQuote = Iif(ch == '[', ']', ch)
+							lInQuote  = .T.
 
-					CASE ch == '&' AND cLastCh == '&'
-						nTerminal = 2
-						EXIT
+						Case ch == '&' And cLastCh == '&'
+							nTerminal = 2
+							Exit
 
-					CASE ch == ';'
-						nTerminal = 1
+						Case ch == ';'
+							nTerminal = 1
 
-					OTHERWISE
-						nTerminal = 1
+						Otherwise
+							nTerminal = 1
 
-					ENDCASE
-				ENDIF
-			ENDIF
-				
-			IF nTerminal <> 0
-				IF !EMPTY(cWord) AND nTokenCnt < MAX_TOKENS
+					Endcase
+				Endif
+			Endif
+
+			If nTerminal <> 0
+				If !Empty(cWord) And nTokenCnt < MAX_TOKENS
 					nTokenCnt = nTokenCnt + 1
 					aTokens[nTokenCnt] = cWord
-				ENDIF
-				IF nTerminal <> 2
+				Endif
+				If nTerminal <> 2
 					cWord = ch
-				ELSE
+				Else
 					cWord = ''
-				ENDIF
+				Endif
 				nTerminal = 0
-			ELSE
+			Else
 				cWord = cWord + ch
-			ENDIF
+			Endif
 			cLastCh = ch
-		ENDFOR
+		Endfor
 
-		IF nTerminal <> 2 AND !EMPTY(cWord) AND nTokenCnt < MAX_TOKENS
+		If nTerminal <> 2 And !Empty(cWord) And nTokenCnt < MAX_TOKENS
 			nTokenCnt = nTokenCnt + 1
 			aTokens[nTokenCnt] = cWord
-		ENDIF
-		
-		RETURN nTokenCnt
-	ENDFUNC
+		Endif
+
+		Return nTokenCnt
+	Endfunc
 
 	* -- Given a code block, create list of definitions
 	* -- Definitions are:
@@ -1361,39 +1380,39 @@ DEFINE CLASS RefSearch AS Custom
 	* --   Parameters (PARAMETERS/LPARAMETERS/Inline)
 	* --   LOCAL/PUBLIC/PRIVATE/HIDDEN/PROTECTED declarations
 	* --   #define
-	FUNCTION FindDefinitions(cTextBlock, cClassName, cObjName, nSearchType)
-		LOCAL i, j
-		LOCAL nLineCnt
-		LOCAL cProcName
-		LOCAL nProcLineNo
-		LOCAL nOffset
-		LOCAL cDefType
-		LOCAL cDefinition
-		LOCAL nDefWordNum
-		LOCAL cUpperDefinition
-		LOCAL lInClassDef
-		LOCAL nTokenCnt
-		LOCAL nToken
-		LOCAL cStopToken
-		LOCAL lUseMemLines
-		LOCAL nMemoWidth
-		LOCAL cCodeLine
-		LOCAL ARRAY aCodeList[1]
-		LOCAL ARRAY aTokens[MAX_TOKENS]
-		
-		IF VARTYPE(m.cClassName) <> 'C'
+	Function FindDefinitions(cTextBlock, cClassName, cObjName, nSearchType)
+		Local i, j
+		Local nLineCnt
+		Local cProcName
+		Local nProcLineNo
+		Local nOffset
+		Local cDefType
+		Local cDefinition
+		Local nDefWordNum
+		Local cUpperDefinition
+		Local lInClassDef
+		Local nTokenCnt
+		Local nToken
+		Local cStopToken
+		Local lUseMemLines
+		Local nMemoWidth
+		Local cCodeLine
+		Local Array aCodeList[1]
+		Local Array aTokens[MAX_TOKENS]
+
+		If Vartype(m.cClassName) <> 'C'
 			m.cClassName = ''
-		ENDIF
+		Endif
 
-		IF VARTYPE(m.cObjName) <> 'C'
+		If Vartype(m.cObjName) <> 'C'
 			m.cObjName = ''
-		ENDIF
+		Endif
 
-		IF m.nSearchType == SEARCHTYPE_METHOD  && search in method code of .vcx or .scx
+		If m.nSearchType == SEARCHTYPE_METHOD  && search in method code of .vcx or .scx
 			m.nOffset = -1
-		ELSE
+		Else
 			m.nOffset = 0
-		ENDIF
+		Endif
 
 		m.cProcName     = ''   && name of procedure/function we're in
 		m.nProcLineNo   = 1
@@ -1405,284 +1424,284 @@ DEFINE CLASS RefSearch AS Custom
 		* ALINES should be faster, but we can't use that if
 		* there are more than 65k lines in the code block
 		m.lUseMemLines = .F.
-		TRY
-			m.nLineCnt = ALINES(aCodeList, m.cTextBlock, .F.)
-		CATCH
+		Try
+			m.nLineCnt = Alines(aCodeList, m.cTextBlock, .F.)
+		Catch
 			m.lUseMemLines = .T.
-		ENDTRY
-		
-		IF m.lUseMemLines
-			m.nMemoWidth = SET("MEMOWIDTH")
-			SET MEMOWIDTH TO 8192
-			m.nLineCnt = MEMLINES(m.cTextBlock)
-			_MLINE = 0
-		ENDIF
+		Endtry
 
-		
-		FOR m.i = 1 TO m.nLineCnt
-			IF m.lUseMemLines
-				m.cCodeLine = MLINE(m.cTextBlock, 1, _MLINE)
-			ELSE
+		If m.lUseMemLines
+			m.nMemoWidth = Set("MEMOWIDTH")
+			Set Memowidth To 8192
+			m.nLineCnt = Memlines(m.cTextBlock)
+			_Mline = 0
+		Endif
+
+
+		For m.i = 1 To m.nLineCnt
+			If m.lUseMemLines
+				m.cCodeLine = Mline(m.cTextBlock, 1, _Mline)
+			Else
 				m.cCodeLine = aCodeList[m.i]
-			ENDIF
-			
-		
-			m.nTokenCnt = THIS.ParseLine(m.cCodeLine, @aTokens, m.nTokenCnt)
-			IF m.nTokenCnt > 0 AND aTokens[m.nTokenCnt] == ';'
+			Endif
+
+
+			m.nTokenCnt = This.ParseLine(m.cCodeLine, @aTokens, m.nTokenCnt)
+			If m.nTokenCnt > 0 And aTokens[m.nTokenCnt] == ';'
 				m.nProcLineNo = m.nProcLineNo + 1
 				m.nTokenCnt = m.nTokenCnt - 1
-				LOOP
-			ENDIF
+				Loop
+			Endif
 
 			m.nToken = 0
-			IF m.nTokenCnt > 1
-				IF LENC(aTokens[1]) >= 4
+			If m.nTokenCnt > 1
+				If Lenc(aTokens[1]) >= 4
 					m.nStopToken = m.nTokenCnt
-					m.cWord1 = UPPER(aTokens[1])
-					m.cWord2 = UPPER(aTokens[2])
+					m.cWord1 = Upper(aTokens[1])
+					m.cWord2 = Upper(aTokens[2])
 
-					DO CASE
-					CASE m.nTokenCnt > 2 AND ("PROTECTED" = m.cWord1 OR "HIDDEN" = m.cWord1) AND (LENC(m.cWord2) >= 4 AND ("PROCEDURE" = m.cWord2 OR "FUNCTION" = m.cWord2))
-						m.cProcName   = aTokens[3]
-						m.nProcLineNo = 0
-						m.lInClassDef = .F.
-						m.cStopToken = ')'
+					Do Case
+						Case m.nTokenCnt > 2 And ("PROTECTED" = m.cWord1 Or "HIDDEN" = m.cWord1) And (Lenc(m.cWord2) >= 4 And ("PROCEDURE" = m.cWord2 Or "FUNCTION" = m.cWord2))
+							m.cProcName   = aTokens[3]
+							m.nProcLineNo = 0
+							m.lInClassDef = .F.
+							m.cStopToken = ')'
 
-						THIS.AddDefinition( ;
-						  m.cProcName, ;
-						  DEFTYPE_PROCEDURE, ;
-						  m.cClassName, ;
-						  m.cObjName + IIF(EMPTY(m.cObjName) OR EMPTY(m.cProcName), '', '.') + m.cProcName, ;
-						  0, ;
-						  m.i, ;
-						  m.cCodeLine ;
-						 )
-						
-						m.cDefType = DEFTYPE_PARAMETER
-						m.nToken = 4
-						m.cStopToken  = ')'
+							This.AddDefinition( ;
+								m.cProcName, ;
+								DEFTYPE_PROCEDURE, ;
+								m.cClassName, ;
+								m.cObjName + Iif(Empty(m.cObjName) Or Empty(m.cProcName), '', '.') + m.cProcName, ;
+								0, ;
+								m.i, ;
+								m.cCodeLine ;
+								)
 
-					CASE "PROCEDURE" = m.cWord1 OR "FUNCTION" = m.cWord1 
-						m.cProcName   = aTokens[2]
-						m.nProcLineNo = 0
-						m.lInClassDef = .F.
+							m.cDefType = DEFTYPE_PARAMETER
+							m.nToken = 4
+							m.cStopToken  = ')'
 
-						THIS.AddDefinition( ;
-						  m.cProcName, ;
-						  DEFTYPE_PROCEDURE, ;
-						  m.cClassName, ;
-						  m.cObjName + IIF(EMPTY(m.cObjName) OR EMPTY(m.cProcName), '', '.') + m.cProcName, ;
-						  0, ;
-						  m.i, ;
-						  m.cCodeLine ;
-						 )
-						
-						m.cDefType = DEFTYPE_PARAMETER
-						m.nToken = 3
-						m.cStopToken  = ')'
+						Case "PROCEDURE" = m.cWord1 Or "FUNCTION" = m.cWord1
+							m.cProcName   = aTokens[2]
+							m.nProcLineNo = 0
+							m.lInClassDef = .F.
 
-					CASE "ENDFUNC" = m.cWord1
-						m.cProcName = ''
-						m.nProcLineNo = 0
-						m.lInClassDef = .F.
+							This.AddDefinition( ;
+								m.cProcName, ;
+								DEFTYPE_PROCEDURE, ;
+								m.cClassName, ;
+								m.cObjName + Iif(Empty(m.cObjName) Or Empty(m.cProcName), '', '.') + m.cProcName, ;
+								0, ;
+								m.i, ;
+								m.cCodeLine ;
+								)
 
-					CASE "ENDPROC" = m.cWord1
-						m.cProcName   = ''
-						m.nProcLineNo = 0
-						m.lInClassDef = .F.
+							m.cDefType = DEFTYPE_PARAMETER
+							m.nToken = 3
+							m.cStopToken  = ')'
 
-					CASE "LOCAL" = m.cWord1
-						m.cDefType = DEFTYPE_LOCAL
-						m.nToken = 2
+						Case "ENDFUNC" = m.cWord1
+							m.cProcName = ''
+							m.nProcLineNo = 0
+							m.lInClassDef = .F.
 
-					CASE "LPARAMETERS" = m.cWord1
-						m.cDefType = DEFTYPE_PARAMETER
-						m.lInClassDef = .F.
-						m.nToken = 2
-
-					CASE "PARAMETERS" = m.cWord1
-						m.cDefType = DEFTYPE_PARAMETER
-						m.lInClassDef = .F.
-						m.nToken = 2
-
-					CASE "PUBLIC" = m.cWord1
-						m.cDefType = DEFTYPE_PUBLIC
-						m.nToken = 2
-
-					CASE "PRIVATE" = m.cWord1
-						m.cDefType = DEFTYPE_PRIVATE
-						m.nToken = 2
-
-					CASE "HIDDEN" = m.cWord1
-						m.cDefType = DEFTYPE_PROPERTY
-						m.nToken = 2
-
-					CASE "PROTECTED" = m.cWord1
-						m.cDefType = DEFTYPE_PROPERTY
-						m.nToken = 2
-
-					CASE "DEFINE" = m.cWord1
-						IF LENC(m.cWord2) >= 4 AND "CLASS" = m.cWord2 AND m.nTokenCnt > 2
-							m.cClassName  = aTokens[3]
+						Case "ENDPROC" = m.cWord1
 							m.cProcName   = ''
 							m.nProcLineNo = 0
-							m.lInClassDef = .T.
+							m.lInClassDef = .F.
 
-							m.cDefType = DEFTYPE_CLASS
+						Case "LOCAL" = m.cWord1
+							m.cDefType = DEFTYPE_LOCAL
+							m.nToken = 2
+
+						Case "LPARAMETERS" = m.cWord1
+							m.cDefType = DEFTYPE_PARAMETER
+							m.lInClassDef = .F.
+							m.nToken = 2
+
+						Case "PARAMETERS" = m.cWord1
+							m.cDefType = DEFTYPE_PARAMETER
+							m.lInClassDef = .F.
+							m.nToken = 2
+
+						Case "PUBLIC" = m.cWord1
+							m.cDefType = DEFTYPE_PUBLIC
+							m.nToken = 2
+
+						Case "PRIVATE" = m.cWord1
+							m.cDefType = DEFTYPE_PRIVATE
+							m.nToken = 2
+
+						Case "HIDDEN" = m.cWord1
+							m.cDefType = DEFTYPE_PROPERTY
+							m.nToken = 2
+
+						Case "PROTECTED" = m.cWord1
+							m.cDefType = DEFTYPE_PROPERTY
+							m.nToken = 2
+
+						Case "DEFINE" = m.cWord1
+							If Lenc(m.cWord2) >= 4 And "CLASS" = m.cWord2 And m.nTokenCnt > 2
+								m.cClassName  = aTokens[3]
+								m.cProcName   = ''
+								m.nProcLineNo = 0
+								m.lInClassDef = .T.
+
+								m.cDefType = DEFTYPE_CLASS
+								m.nToken = 3
+								m.nStopToken = 3
+
+								* if this is a "DEFINE CLASS <classname> AS <parentclass> OF <classlibrary>"
+								* then add the class library to files to process
+								If m.nTokenCnt >= 7 And Upper(aTokens[6]) == "OF"
+									* add to collection of files we found to process
+									This.AddFileToProcess( ;
+										DEFTYPE_SETCLASSPROC, ;
+										aTokens[7], ;
+										m.cClassName, ;
+										m.cObjName + Iif(Empty(m.cObjName) Or Empty(m.cProcName), '', '.') + m.cProcName, ;
+										m.nProcLineNo, ;
+										m.i, ;
+										m.cCodeLine ;
+										)
+								Endif
+							Endif
+
+						Case "ENDDEFINE" = m.cWord1
+							m.cClassName  = ''
+							m.cProcName   = ''
+							m.nProcLineNo = 0
+							m.lInClassDef = .F.
+
+						Case m.lInClassDef And ("DIMENSION" = m.cWord1 Or "DECLARE" = m.cWord1)
+							m.cDefType = DEFTYPE_PROPERTY
+							m.nToken = 2
+							m.nStopToken = 2
+
+						Case m.lInClassDef And aTokens[2] == '='
+							* if we're in a class definition and we have an
+							* assignment or DIMENSION/DECLARE statement,
+							* then that's a Property definition
+							m.cDefType = DEFTYPE_PROPERTY
+							m.nToken = 1
+							m.nStopToken = 1
+					Endcase
+				Else
+					Do Case
+						Case aTokens[1] == "#" And Lenc(aTokens[2]) >= 4 And "DEFINE" = Upper(aTokens[2]) && #define
+							m.cDefType = DEFTYPE_DEFINE
 							m.nToken = 3
 							m.nStopToken = 3
-							
-							* if this is a "DEFINE CLASS <classname> AS <parentclass> OF <classlibrary>"
-							* then add the class library to files to process
-							IF m.nTokenCnt >= 7 AND UPPER(aTokens[6]) == "OF"
-								* add to collection of files we found to process
-								THIS.AddFileToProcess( ;
-								  DEFTYPE_SETCLASSPROC, ;
-								  aTokens[7], ;
-								  m.cClassName, ;
-								  m.cObjName + IIF(EMPTY(m.cObjName) OR EMPTY(m.cProcName), '', '.') + m.cProcName, ;
-								  m.nProcLineNo, ;
-								  m.i, ;
-								  m.cCodeLine ;
-								 )
-							ENDIF
-						ENDIF
 
-					CASE "ENDDEFINE" = m.cWord1
-						m.cClassName  = ''
-						m.cProcName   = ''
-						m.nProcLineNo = 0
-						m.lInClassDef = .F.
-						
-					CASE m.lInClassDef AND ("DIMENSION" = m.cWord1 OR "DECLARE" = m.cWord1)
-						m.cDefType = DEFTYPE_PROPERTY
-						m.nToken = 2
-						m.nStopToken = 2
+						Case aTokens[1] == "#" And Lenc(aTokens[2]) >= 4 And "INCLUDE" = Upper(aTokens[2]) && #include
+							* add to collection of files we found to process
+							This.AddFileToProcess( ;
+								DEFTYPE_INCLUDEFILE, ;
+								aTokens[3], ;
+								m.cClassName, ;
+								m.cObjName + Iif(Empty(m.cObjName) Or Empty(m.cProcName), '', '.') + m.cProcName, ;
+								m.nProcLineNo, ;
+								m.i, ;
+								m.cCodeLine ;
+								)
 
-					CASE m.lInClassDef AND aTokens[2] == '='
-						* if we're in a class definition and we have an
-						* assignment or DIMENSION/DECLARE statement, 
-						* then that's a Property definition
-						m.cDefType = DEFTYPE_PROPERTY
-						m.nToken = 1
-						m.nStopToken = 1
-					ENDCASE
-				ELSE
-					DO CASE
-					CASE aTokens[1] == "#" AND LENC(aTokens[2]) >= 4 AND "DEFINE" = UPPER(aTokens[2]) && #define
-						m.cDefType = DEFTYPE_DEFINE
-						m.nToken = 3
-						m.nStopToken = 3
+						Case Upper(aTokens[1]) == "SET"
+							m.cWord2 = Upper(aTokens[2])
+							* SET PROCEDURE TO <program> or SET CLASSLIB TO <classlibrary>
+							If Lenc(m.cWord2) >= 4 And m.nTokenCnt >= 4 And Upper(aTokens[3]) == "TO"
+								Do Case
+									Case "CLASSLIB" = m.cWord2
+										* add to collection of files we found to process
+										This.AddFileToProcess( ;
+											DEFTYPE_SETCLASSPROC, ;
+											DEFAULTEXT(aTokens[4], "vcx"), ;
+											m.cClassName, ;
+											m.cObjName + Iif(Empty(m.cObjName) Or Empty(m.cProcName), '', '.') + m.cProcName, ;
+											m.nProcLineNo, ;
+											m.i, ;
+											m.cCodeLine ;
+											)
 
-					CASE aTokens[1] == "#" AND LENC(aTokens[2]) >= 4 AND "INCLUDE" = UPPER(aTokens[2]) && #include
-						* add to collection of files we found to process
-						THIS.AddFileToProcess( ;
-						  DEFTYPE_INCLUDEFILE, ;
-						  aTokens[3], ;
-						  m.cClassName, ;
-						  m.cObjName + IIF(EMPTY(m.cObjName) OR EMPTY(m.cProcName), '', '.') + m.cProcName, ;
-						  m.nProcLineNo, ;
-						  m.i, ;
-						  m.cCodeLine ;
-						 )
+									Case "PROCEDURE" = m.cWord2
+										* SET PROCEDURE TO supports a comma-delimited list of filenames
+										For m.j = 4 To m.nTokenCnt
+											If Lenc(aTokens[m.j]) >= 4 And "ADDI" = Upper(aTokens[m.j])
+												Exit
+											Endif
+											This.AddFileToProcess( ;
+												DEFTYPE_SETCLASSPROC, ;
+												DEFAULTEXT(aTokens[m.j], "prg"), ;
+												m.cClassName, ;
+												m.cObjName + Iif(Empty(m.cObjName) Or Empty(m.cProcName), '', '.') + m.cProcName, ;
+												m.nProcLineNo, ;
+												m.i, ;
+												m.cCodeLine ;
+												)
+										Endfor
+								Endcase
+							Endif
 
-					CASE UPPER(aTokens[1]) == "SET"
-						m.cWord2 = UPPER(aTokens[2])
-						* SET PROCEDURE TO <program> or SET CLASSLIB TO <classlibrary>
-						IF LENC(m.cWord2) >= 4 AND m.nTokenCnt >= 4 AND UPPER(aTokens[3]) == "TO"
-							DO CASE
-							CASE "CLASSLIB" = m.cWord2 
-								* add to collection of files we found to process
-								THIS.AddFileToProcess( ;
-								  DEFTYPE_SETCLASSPROC, ;
-								  DEFAULTEXT(aTokens[4], "vcx"), ;
-								  m.cClassName, ;
-								  m.cObjName + IIF(EMPTY(m.cObjName) OR EMPTY(m.cProcName), '', '.') + m.cProcName, ;
-								  m.nProcLineNo, ;
-								  m.i, ;
-								  m.cCodeLine ;
-								 )
-
-							CASE "PROCEDURE" = m.cWord2
-								* SET PROCEDURE TO supports a comma-delimited list of filenames
-								FOR m.j = 4 TO m.nTokenCnt
-									IF LENC(aTokens[m.j]) >= 4 AND "ADDI" = UPPER(aTokens[m.j])
-										EXIT
-									ENDIF
-									THIS.AddFileToProcess( ;
-									  DEFTYPE_SETCLASSPROC, ;
-									  DEFAULTEXT(aTokens[m.j], "prg"), ;
-									  m.cClassName, ;
-									  m.cObjName + IIF(EMPTY(m.cObjName) OR EMPTY(m.cProcName), '', '.') + m.cProcName, ;
-									  m.nProcLineNo, ;
-									  m.i, ;
-									  m.cCodeLine ;
-									 )
-								ENDFOR
-							ENDCASE
-						ENDIF
-
-					CASE m.lInClassDef AND aTokens[2] == '='
-						* if we're in a class definition and we have an
-						* assignment or DIMENSION/DECLARE statement, 
-						* then that's a Property definition
-						m.cDefType = DEFTYPE_PROPERTY
-						m.nToken = 1
-						m.nStopToken = 1
-					ENDCASE
-				ENDIF
-			ENDIF
+						Case m.lInClassDef And aTokens[2] == '='
+							* if we're in a class definition and we have an
+							* assignment or DIMENSION/DECLARE statement,
+							* then that's a Property definition
+							m.cDefType = DEFTYPE_PROPERTY
+							m.nToken = 1
+							m.nStopToken = 1
+					Endcase
+				Endif
+			Endif
 
 			* Grab all definitions from this line
-			IF m.nToken > 0
-				DO WHILE m.nToken <= m.nStopToken
+			If m.nToken > 0
+				Do While m.nToken <= m.nStopToken
 					m.cDefinition= aTokens[m.nToken]
 
-					IF m.cDefinition == m.cStopToken
-						EXIT
-					ENDIF
+					If m.cDefinition == m.cStopToken
+						Exit
+					Endif
 
-					IF ISALPHA(m.cDefinition) OR m.cDefinition = '_'
-						m.cUpperDefinition = UPPER(m.cDefinition)
+					If Isalpha(m.cDefinition) Or m.cDefinition = '_'
+						m.cUpperDefinition = Upper(m.cDefinition)
 
-						DO CASE
-						CASE m.cUpperDefinition == "ARRAY" OR m.cUpperDefinition == "ARRA"
-							m.nToken = m.nToken + 1
-							LOOP
+						Do Case
+							Case m.cUpperDefinition == "ARRAY" Or m.cUpperDefinition == "ARRA"
+								m.nToken = m.nToken + 1
+								Loop
 
-						CASE m.cUpperDefinition == "AS" OR m.cUpperDefinition == "OF" OR (LENC(m.cUpperDefinition) >= 4 AND m.cUpperDefinition = "OLEPUBLIC")
-							m.nToken = m.nToken + 2
-							LOOP
+							Case m.cUpperDefinition == "AS" Or m.cUpperDefinition == "OF" Or (Lenc(m.cUpperDefinition) >= 4 And m.cUpperDefinition = "OLEPUBLIC")
+								m.nToken = m.nToken + 2
+								Loop
 
-						ENDCASE
-							
-						THIS.AddDefinition( ;
-						  m.cDefinition, ;
-						  m.cDefType, ;
-						  IIF(m.cDefType == DEFTYPE_CLASS, '', m.cClassName), ;
-						  m.cObjName + IIF(EMPTY(m.cObjName) OR EMPTY(m.cProcName), '', '.') + m.cProcName, ;
-						  IIF(nSearchType == SEARCHTYPE_EXPR, 0, m.nProcLineNo + m.nOffset), ;
-						  IIF(nSearchType == SEARCHTYPE_EXPR, 0, m.i), ;
-						  m.cCodeLine ;
-						 )
+						Endcase
 
-						IF m.cDefType == DEFTYPE_DEFINE && for a #DEFINE, only grab the word after the #DEFINE statement
-							EXIT
-						ENDIF
-					ENDIF
+						This.AddDefinition( ;
+							m.cDefinition, ;
+							m.cDefType, ;
+							IIF(m.cDefType == DEFTYPE_CLASS, '', m.cClassName), ;
+							m.cObjName + Iif(Empty(m.cObjName) Or Empty(m.cProcName), '', '.') + m.cProcName, ;
+							IIF(nSearchType == SEARCHTYPE_EXPR, 0, m.nProcLineNo + m.nOffset), ;
+							IIF(nSearchType == SEARCHTYPE_EXPR, 0, m.i), ;
+							m.cCodeLine ;
+							)
+
+						If m.cDefType == DEFTYPE_DEFINE && for a #DEFINE, only grab the word after the #DEFINE statement
+							Exit
+						Endif
+					Endif
 					m.nToken = m.nToken + 1
-				ENDDO
-			ENDIF
+				Enddo
+			Endif
 
 			m.nProcLineNo = m.nProcLineNo + 1
 			m.nTokenCnt = 0
-		ENDFOR
+		Endfor
 
-		IF m.lUseMemLines
-			SET MEMOWIDTH TO (m.nMemoWidth)
-		ENDIF
-		
-	ENDFUNC
+		If m.lUseMemLines
+			Set Memowidth To (m.nMemoWidth)
+		Endif
+
+	Endfunc
 
 
 	* Abstract:
@@ -1691,32 +1710,32 @@ DEFINE CLASS RefSearch AS Custom
 	*	This is necessary because LTRIM()
 	*	does not handle tabs (only spaces)
 	*
-	FUNCTION StripTabs(cRefCode)
-		RETURN ALLTRIM(CHRTRAN(RTRIM(m.cRefCode), TAB, ' '))
-	ENDFUNC
+	Function StripTabs(cRefCode)
+		Return Alltrim(Chrtran(Rtrim(m.cRefCode), Tab, ' '))
+	Endfunc
 
-	* compile a block of code and return the compiled 
+	* compile a block of code and return the compiled
 	* version of it
-	FUNCTION CompileCode(cCodeBlock)
-		LOCAL cObjCode
-		LOCAL cTempFile
-		LOCAL cSafety
+	Function CompileCode(cCodeBlock)
+		Local cObjCode
+		Local cTempFile
+		Local cSafety
 
-		cObjCode = .NULL.
-		cTempFile = ADDBS(GETENV("TMP")) + RIGHTC(SYS(2015), 8)
-		
-		cSafety = SET("SAFETY")
-		SET Safety OFF
+		cObjCode = .Null.
+		cTempFile = Addbs(Getenv("TMP")) + Rightc(Sys(2015), 8)
 
-		IF STRTOFILE(cCodeBlock, cTempFile + ".prg") > 0
-			COMPILE (cTempFile + ".prg")
-			cObjCode = FILETOSTR(cTempFile + ".fxp")
-		ENDIF
-		ERASE (cTempFile + ".prg")
-		ERASE (cTempFile + ".fxp")
-		
-		SET Safety &cSafety)
-		
-		RETURN cObjCode
-	ENDFUNC
-ENDDEFINE
+		cSafety = Set("SAFETY")
+		Set Safety Off
+
+		If Strtofile(cCodeBlock, cTempFile + ".prg") > 0
+			Compile (cTempFile + ".prg")
+			cObjCode = Filetostr(cTempFile + ".fxp")
+		Endif
+		Erase (cTempFile + ".prg")
+		Erase (cTempFile + ".fxp")
+
+		Set Safety &cSafety)
+
+		Return cObjCode
+	Endfunc
+Enddefine
